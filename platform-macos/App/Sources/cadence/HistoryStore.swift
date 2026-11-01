@@ -354,6 +354,20 @@ final class HistoryStore {
         }
     }
 
+    // MARK: dictation features
+    func featureEnabled(_ key: String, default fallback: Bool) -> Bool {
+        guard let handle, let c = cadence_store_setting_get(handle, key) else { return fallback }
+        defer { cadence_string_free(c) }
+        return String(cString: c) == "on"
+    }
+
+    func setFeature(_ key: String, enabled: Bool) {
+        guard let handle else { return }
+        if !cadence_store_setting_set(handle, key, enabled ? "on" : "off") {
+            LogFile.append("feature setting save failed: \(key)")
+        }
+    }
+
     // MARK: input device preference
 
     /// Prefer the built-in mic over Bluetooth headsets (default ON — HFP telephony audio

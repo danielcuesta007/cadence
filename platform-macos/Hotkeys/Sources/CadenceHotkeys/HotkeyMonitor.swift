@@ -55,27 +55,93 @@ public struct PTTArbiter {
     }
 
     public private(set) var held: PTTKey?
+    public private(set) var latched = false
+    public private(set) var deadline: TimeInterval?
+    private var pressedAt: TimeInterval = 0
+    private var secondTap = false
+    private var physicalDown = false
+    public static let tapWindow: TimeInterval = 0.3
 
     public init() {}
 
-    public mutating func resolve(key: PTTKey, down: Bool, otherModifiers: Bool) -> Decision {
-        if down {
-            guard held == nil, !otherModifiers else { return .ignore }
-            held = key
-            return .start(key)
+    public mutating func resolve(key: PTTKey, down: Bool, otherModifiers: Bool,
+                                 now: TimeInterval = 0, handsFree: Bool = false) -> Decision {
+        if !handsFree {
+            if down {
+                guard held == nil, !otherModifiers else { return .ignore }
+                held = key
+                return .start(key)
+            }
+            guard held == key else { return .ignore }
+            held = nil
+            return .stop(key)
         }
-        guard held == key else { return .ignore }
-        held = nil
+        if down {
+            guard !otherModifiers, !physicalDown, held == nil || held == key else { return .ignore }
+            physicalDown = true
+            pressedAt = now
+            secondTap = deadline.map { now <= $0 } ?? false
+            deadline = nil
+            if held == nil {
+                held = key
+                return .start(key)
+            }
+            return .ignore
+        }
+        guard held == key, physicalDown else { return .ignore }
+        physicalDown = false
+        let quick = now - pressedAt <= Self.tapWindow
+        if secondTap && quick {
+            secondTap = false
+            if latched {
+                reset()
+                return .stop(key)
+            }
+            latched = true
+            return .ignore
+        }
+        secondTap = false
+        if latched {
+            deadline = quick ? now + Self.tapWindow : nil
+            return .ignore
+        }
+        if quick {
+            deadline = now + Self.tapWindow
+            return .ignore
+        }
+        reset()
         return .stop(key)
     }
 
-    /// The user did something that proves this was not speech — a foreign modifier joined the
-    /// hold, or they started typing. Retract the dictation if one is in flight.
-    public mutating func retract() -> Decision {
-        guard let key = held else { return .ignore }
+    public mutating func expire(now: TimeInterval) -> Decision {
+        guard let deadline, now >= deadline else { return .ignore }
+        self.deadline = nil
+        guard !latched, let key = held else { return .ignore }
+        reset()
+        return .stop(key)
+    }
+
+    public mutating func reset() {
         held = nil
+        latched = false
+        deadline = nil
+        physicalDown = false
+        secondTap = false
+    }
+
+    public mutating func retract() -> Decision {
+        // Hands-free dictation permits ordinary typing and modifier shortcuts.
+        if latched {
+            deadline = nil
+            secondTap = false
+            physicalDown = false
+            return .ignore
+        }
+        guard let key = held else { return .ignore }
+        reset()
         return .cancel(key)
     }
+
 }
 
 public final class HotkeyMonitor {
@@ -94,6 +160,17 @@ public final class HotkeyMonitor {
     /// The second key is opt-out: when this returns false Left-Option is ignored entirely,
     /// so a user who needs it for typing can turn the whole binding off.
     public var secondaryEnabled: () -> Bool = { true }
+
+    public var handsFreeEnabled: () -> Bool = { true }
+    public var onHandsFreeChanged: ((Bool) -> Void)?
+    private var releaseTimer: Timer?
+
+    public func resetGesture() {
+        releaseTimer?.invalidate()
+        releaseTimer = nil
+        arbiter.reset()
+        onHandsFreeChanged?(false)
+    }
 
     private var tap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
@@ -138,6 +215,7 @@ public final class HotkeyMonitor {
     }
 
     public func stop() {
+        resetGesture()
         if let tap { CGEvent.tapEnable(tap: tap, enable: false) }
         if let runLoopSource {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
@@ -148,6 +226,9 @@ public final class HotkeyMonitor {
 
     private func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+            let active = arbiter.held
+            resetGesture()
+            if let active { onPTTCancel?(active) }
             if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
             return Unmanaged.passUnretained(event)
         }
@@ -167,6 +248,7 @@ public final class HotkeyMonitor {
             return Unmanaged.passUnretained(event)
         }
         if type == .keyDown, keyCode == Self.kEscape, isActive() {
+            resetGesture()
             DispatchQueue.main.async { self.onCancel?() }
             return nil // consumed: cancel must not also close the user's dialog/sheet
         }
@@ -248,7 +330,22 @@ public final class HotkeyMonitor {
         // keys — the other one being down is the arbiter's business, not a chord signal.
         let chordMods: CGEventFlags = [.maskCommand, .maskControl, .maskShift]
         let others = !flags.intersection(chordMods).isEmpty
-        fire(arbiter.resolve(key: key, down: down, otherModifiers: others))
+        // Resolve an elapsed first tap before a later press can steal its pending stop.
+        fire(arbiter.expire(now: ProcessInfo.processInfo.systemUptime))
+        let wasLatched = arbiter.latched
+        fire(arbiter.resolve(key: key, down: down, otherModifiers: others,
+                             now: ProcessInfo.processInfo.systemUptime,
+                             handsFree: handsFreeEnabled()))
+        if wasLatched != arbiter.latched { onHandsFreeChanged?(arbiter.latched) }
+        releaseTimer?.invalidate()
+        if let deadline = arbiter.deadline {
+            releaseTimer = Timer(timeInterval: max(0, deadline - ProcessInfo.processInfo.systemUptime),
+                                 repeats: false) { [weak self] _ in
+                guard let self else { return }
+                self.fire(self.arbiter.expire(now: ProcessInfo.processInfo.systemUptime))
+            }
+            RunLoop.main.add(releaseTimer!, forMode: .common)
+        }
     }
 
     /// A non-PTT modifier moved: retract any hold it just turned into a chord.

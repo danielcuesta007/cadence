@@ -65,13 +65,15 @@ impl RingBuffer {
     /// instant pass (§12.3), which re-reads the growing window while the user is still speaking;
     /// the refined pass still [`drain`](RingBuffer::drain)s at end-of-utterance.
     pub fn snapshot(&self) -> Vec<i16> {
+        self.snapshot_tail(self.len)
+    }
+
+    /// Copy only the recent tail; cost is independent of a long recording's prefix.
+    pub fn snapshot_tail(&self, limit: usize) -> Vec<i16> {
         let cap = self.buf.len();
-        let start = (self.head + cap - self.len) % cap;
-        let mut out = Vec::with_capacity(self.len);
-        for i in 0..self.len {
-            out.push(self.buf[(start + i) % cap]);
-        }
-        out
+        let len = self.len.min(limit);
+        let start = (self.head + cap - len) % cap;
+        (0..len).map(|i| self.buf[(start + i) % cap]).collect()
     }
 
     /// Drain the buffered window in chronological order and reset.
@@ -92,6 +94,18 @@ impl RingBuffer {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn tail_snapshot_is_chronological_and_bounded() {
+        let mut r = RingBuffer::new(8);
+        r.push(&[1, 2, 3, 4, 5, 6]);
+        assert_eq!(r.snapshot_tail(3), vec![4, 5, 6]);
+        r.push(&[7, 8, 9, 10]);
+        assert_eq!(r.snapshot_tail(3), vec![8, 9, 10]);
+        assert_eq!(r.snapshot_tail(99), r.snapshot());
+        assert!(r.snapshot_tail(0).is_empty());
+        assert_eq!(r.len(), 8);
+    }
 
     #[test]
     fn preserves_order_within_capacity() {

@@ -18,6 +18,11 @@ jobs:
             target
           key: cargo-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
       - run: cargo test --workspace --locked
+      - run: cargo build --release -p cadence-ffi --locked
+      - run: swift build --package-path platform-macos -c release
+      - run: platform-macos/.build/release/cadence selftest-hotkeys
+      - run: platform-macos/.build/release/cadence selftest-delivery
+      - run: platform-macos/.build/release/insertctl selftest
   site-and-release:
     runs-on: macos-latest
     steps:

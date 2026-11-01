@@ -1,6 +1,46 @@
 # STATUS — Cadence build progress
 
-Updated: 2026-10-29 · Phase: **1 (MVP spine)** · Blueprint: docs/CADENCE_BLUEPRINT.md
+Updated: 2026-11-01 · Phase: **1 (MVP spine)** · Blueprint: docs/CADENCE_BLUEPRINT.md
+
+## Step 9 — Dictation delivery and hands-free controls (2026-11-01)
+
+Objective (Daniel): “available to copy and paste in if it missed the mark”; double-tap
+Option to start/finish a long dictation; optional live insertion in a feature setting.
+Step 9 follows the eight numbered milestones in the existing October audit; it does
+not claim that the earlier manual acceptance items are closed.
+
+Implemented: Dictation Settings with clipboard recovery on by default, double-tap
+hands-free on by default, and Experimental Features → Live Insertion off by default.
+Normal holds retain immediate release; only short taps wait 300 ms for a second tap.
+Language keys cannot interleave. Chords/typing retract accidental holds; shortcuts during
+hands-free break the tap sequence without cancelling speech. Escape, tap failure and
+completion reset gestures. Live previews verify field identity, value and caret; user
+interference stops writes and routes the full final to clipboard. Cancellation restores
+only an unchanged preview; unsupported fields insert on finish. Pill distinguishes
+preview, provisional writing, verified insertion, unconfirmed sending and recovery.
+
+Audit fix: the old 60-second audio ring silently discarded opening speech. Capacity is
+now 30 minutes (57.6 MB), with automatic finalization at 29 minutes. Partial decoding
+copies only its recent eight seconds; the final still uses the complete recording.
+
+VERIFIED: Rust workspace 117/117; release Whisper/Metal + Swift build; hotkeys 69/69,
+delivery 20/20, insertion 9/9, existing store/lifecycle checks, packaging 5/5.
+Planted regressions caught: old one-minute capacity, missing latch, disabled clipboard
+preference guard, and missing live field/caret/focus validation. CI now builds the Swift
+shell and runs its hotkey/delivery/insertion checks without requiring a model.
+
+NOT VERIFIED: real speech with physical double-tap; multi-minute real ASR quality;
+manual live insertion across third-party apps. Streaming text is provisional and may
+pause for ambiguous overlapping words until the authoritative final. If the user edits
+a preview, it is left intact and must be removed before pasting the final. No public
+DMG/tag/site deployment is part of this change. Existing latency diagnostic source and
+rollback app are preserved; this work does not claim to fix that intermittent startup.
+
+FILES: `platform-macos/{Hotkeys,Insertion,Overlay,App}`, `core/{ffi,orchestrator}`,
+README, CI and packaging microphone description. Branch `feat/dictation-controls` in
+`~/cadence-dictation-controls`; review/PR/merge and local installation receipt pending.
+NEXT: finish the Codex review, merge feature → dev → main, install with the existing
+stable signature/model, then Daniel's physical speech acceptance.
 
 ## Brand voice — Keep your cadence (2026-10-29)
 

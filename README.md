@@ -16,6 +16,38 @@ reserved by the blueprint and currently empty.
 UX spec + roadmap). Progress: [`docs/STATUS.md`](docs/STATUS.md) · Decisions:
 [`docs/DECISIONS.md`](docs/DECISIONS.md) · ADRs: [`docs/adr/`](docs/adr/)
 
+## Dictation controls and recovery
+
+Hold either Option key to dictate as before. Or **quickly double-tap the same Option key**
+(two short taps, within 300 ms) to start hands-free dictation. The pill says **hands-free**;
+double-tap that key again to finish and insert. Right-Option and Left-Option keep their own
+language assignments. Escape cancels. A single short tap finishes after the double-tap
+window; releasing a normal hold finishes immediately. Option shortcuts still work.
+Recordings automatically finish at 29 minutes so the audio buffer cannot silently discard
+the beginning. Streaming previews copy only the recent eight seconds of audio.
+
+Open the Cadence menu → **Dictation Settings**:
+
+- **Keep Latest Dictation on Clipboard** (on by default): the completed text is ready for
+  Command-V even when insertion reports success, so you can recover a missed target.
+  Turn it off to preserve your previous clipboard after successful insertion. Failed
+  insertion still copies the text for recovery. A newer clipboard write during the paste
+  transaction is preserved.
+- **Double-Tap Option for Hands-Free** (on by default): turn off for hold-only controls.
+- **Experimental Features → Live Insertion (Supported Fields)** (off by default): provisional
+  words appear in readable, editable Accessibility fields while you speak; the final
+  transcript replaces the preview once. This does not send/submit a form or press Return.
+  Unsupported fields use the usual insert-on-finish flow. If focus, caret or field contents
+  change, Cadence stops updating that preview and puts the final text on the clipboard.
+  Your edits are preserved; remove any remaining provisional text before pasting the final.
+  Escape removes a preview only while it is still safe to do so. Sliding-window previews
+  reconcile overlapping words; ambiguous revisions wait for the authoritative final text.
+
+The pill distinguishes **Preview**, **Live preview · provisional**, **Inserted**,
+**Sent · not confirmed**, and **Not inserted · ⌘V to paste**. The microphone waveform alone
+indicates sound capture, not successful insertion. Settings persist in the existing encrypted
+store; if that store is unavailable, changes last for the current app session.
+
 ## What it does
 
 - **Push-to-talk dictation** into any app — direct Accessibility insertion where the target
@@ -138,7 +170,8 @@ platform-macos/.build/release/cadence selftest-widget    # desktop stats, stale 
 platform-macos/.build/release/cadence selftest-stats     # dashboard metric maths
 platform-macos/.build/release/cadence selftest-store     # store key: keep, rescue, or reset
 python3 -m unittest discover -s tools -p 'test_*.py'      # log recovery (tools/recover_from_log.py)
-platform-macos/.build/release/cadence selftest-hotkeys   # two-key PTT arbitration + app chords
+platform-macos/.build/release/cadence selftest-hotkeys   # PTT, double-tap hands-free and app chords
+platform-macos/.build/release/cadence selftest-delivery  # safe live previews, recovery, UTF-16 ranges
 platform-macos/.build/release/cadence selftest-lifecycle # startup, heartbeat, shutdown evidence
 platform-macos/.build/release/cadence selftest-appearance [--out dir]  # light/dark renders
 qa/wer-harness.sh                                  # word error rate + ASR latency together
