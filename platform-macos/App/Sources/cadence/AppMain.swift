@@ -21,6 +21,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var terminationReason = "application_quit_or_logout"
     let desktopWidget = DesktopWidgetController()
     let desktopWidgetItem = NSMenuItem(title: "Show Desktop Widget", action: nil, keyEquivalent: "")
+    var copyDictations = true
+    var handsFree = true
+    var liveInsertion = false
+    let copyDictationsItem = NSMenuItem(title: "Keep Latest Dictation on Clipboard", action: nil, keyEquivalent: "")
+    let handsFreeItem = NSMenuItem(title: "Double-Tap Option for Hands-Free", action: nil, keyEquivalent: "")
+    let liveInsertionItem = NSMenuItem(title: "Live Insertion (Supported Fields)", action: nil, keyEquivalent: "")
     let overlay = OverlayHUD()
     let capture = AudioCapture()
     let hotkeys = HotkeyMonitor()
@@ -141,6 +147,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         verbatimItem.action = #selector(toggleVerbatim)
         verbatimItem.target = self
         menu.addItem(verbatimItem)
+        let features = NSMenu()
+        for (item, action) in [(copyDictationsItem, #selector(toggleCopyDictations)),
+                               (handsFreeItem, #selector(toggleHandsFree))] {
+            item.target = self
+            item.action = action
+            features.addItem(item)
+        }
+        let experimental = NSMenu()
+        liveInsertionItem.target = self
+        liveInsertionItem.action = #selector(toggleLiveInsertion)
+        experimental.addItem(liveInsertionItem)
+        let experimentalItem = NSMenuItem(title: "Experimental Features", action: nil, keyEquivalent: "")
+        experimentalItem.submenu = experimental
+        features.addItem(experimentalItem)
+        let featuresItem = NSMenuItem(title: "Dictation Settings", action: nil, keyEquivalent: "")
+        featuresItem.submenu = features
+        menu.addItem(featuresItem)
         menu.addItem(.separator())
         // Per-app rule (§7 per-app overrides, first slice): toggle dictation for whatever
         // app is frontmost when the menu opens (we're an LSUIElement — opening the menu
@@ -246,6 +269,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         dictationLanguage = store?.dictationLanguage ?? "en"
         secondaryLanguage = store?.secondaryLanguage ?? "es"
         verbatimMode = store?.verbatimMode ?? false
+        copyDictations = store?.featureEnabled("copy_dictations", default: true) ?? true
+        handsFree = store?.featureEnabled("hands_free", default: true) ?? true
+        liveInsertion = store?.featureEnabled("live_insertion", default: false) ?? false
+        router.copyDictationsEnabled = { [weak self] in self?.copyDictations ?? true }
+        router.liveInsertionEnabled = { [weak self] in self?.liveInsertion ?? false }
+        hotkeys.handsFreeEnabled = { [weak self] in self?.handsFree ?? true }
+        hotkeys.onHandsFreeChanged = { [weak self] on in self?.overlay.setHandsFree(on) }
         Appearance.apply(store?.appearance ?? .system)
         Appearance.persist = { [weak self] choice in
             self?.historyStore?.setAppearance(choice)
@@ -258,6 +288,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         router.statusUpdate = { [weak self] state in
             guard let self else { return }
             self.renderState(state)
+            if state == "idle" || state == "thinking" { self.hotkeys.resetGesture() }
             if state == "idle", let a = self.activity {
                 ProcessInfo.processInfo.endActivity(a)
                 self.activity = nil
@@ -269,10 +300,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         hotkeys.secondaryEnabled = { [weak self] in (self?.secondaryLanguage ?? "off") != "off" }
         hotkeys.onPTTDown = { [weak self] key in
             guard let self else { return }
+            guard self.router.activeState == "idle" else {
+                self.hotkeys.resetGesture()
+                return
+            }
+            self.pttSwallowed = false
             // Per-app rule: dictation is off here — say so briefly, touch nothing else.
             let front = NSWorkspace.shared.frontmostApplication?.localizedName ?? ""
             if self.disabledApps.contains(front) {
                 self.pttSwallowed = true
+                self.hotkeys.resetGesture()
                 self.overlay.show(state: "disabled", chip: nil)
                 self.overlay.scheduleFade(after: 0.9)
                 return
@@ -480,11 +517,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private var dashboard: DashboardWindowController?
 
+    @objc func toggleCopyDictations() {
+        copyDictations.toggle()
+        historyStore?.setFeature("copy_dictations", enabled: copyDictations)
+    }
+    @objc func toggleHandsFree() {
+        guard router.activeState == "idle" else { return }
+        hotkeys.resetGesture()
+        handsFree.toggle()
+        historyStore?.setFeature("hands_free", enabled: handsFree)
+    }
+    @objc func toggleLiveInsertion() {
+        guard router.activeState == "idle" else { return }
+        liveInsertion.toggle()
+        historyStore?.setFeature("live_insertion", enabled: liveInsertion)
+    }
+
     // MARK: menu
 
     /// Refresh the per-app toggle for whatever is frontmost as the menu opens. We're an
     /// LSUIElement, so opening our menu leaves the user's app frontmost.
     func menuNeedsUpdate(_ menu: NSMenu) {
+        copyDictationsItem.state = copyDictations ? .on : .off
+        handsFreeItem.state = handsFree ? .on : .off
+        liveInsertionItem.state = liveInsertion ? .on : .off
+        // Gesture and preview settings take effect between utterances.
+        handsFreeItem.isEnabled = router.activeState == "idle"
+        liveInsertionItem.isEnabled = router.activeState == "idle"
         desktopWidgetItem.state = desktopWidget.enabled ? .on : .off
         let front = NSWorkspace.shared.frontmostApplication?.localizedName
         menuFrontApp = front
@@ -519,17 +578,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         for item in secondaryLanguageItem.submenu?.items ?? [] {
             item.state = (item.representedObject as? String) == secondaryLanguage ? .on : .off
         }
-        hintItem.title = Self.hintTitle(primary: dictationLanguage, secondary: secondaryLanguage)
+        hintItem.title = Self.hintTitle(primary: dictationLanguage, secondary: secondaryLanguage, handsFree: handsFree)
     }
 
     /// "Hold Right-Option (English) · Left-Option (Spanish) · Esc cancels" — the second key
     /// is dropped from the hint when it is unbound, so the line never advertises a dead key.
-    static func hintTitle(primary: String, secondary: String) -> String {
+    static func hintTitle(primary: String, secondary: String, handsFree: Bool = false) -> String {
         func name(_ code: String) -> String {
             secondaryLanguageChoices.first { $0.1 == code }?.0 ?? code
         }
         var parts = ["Hold Right-Option (\(name(primary)))"]
         if secondary != "off" { parts.append("Left-Option (\(name(secondary)))") }
+        if handsFree { parts.append("Double-tap to start/finish hands-free") }
         parts.append("Esc cancels")
         parts.append("⌃⌥⌘Z undoes")
         return parts.joined(separator: " · ")

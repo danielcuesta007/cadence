@@ -56,7 +56,7 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
     <!-- Menu-bar agent: no Dock icon, no app switcher entry (§12: invisible until used). -->
     <key>LSUIElement</key>               <true/>
     <key>NSMicrophoneUsageDescription</key>
-    <string>Cadence listens only while you hold the dictation key, and transcribes entirely on this Mac.</string>
+    <string>Cadence listens while you hold the dictation key or enable hands-free dictation, and transcribes entirely on this Mac.</string>
     <key>NSHumanReadableCopyright</key>  <string>© 2026 Daniel Cuesta</string>
 </dict>
 </plist>

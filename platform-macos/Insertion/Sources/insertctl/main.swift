@@ -46,7 +46,7 @@ case "insert":
         FileHandle.standardError.write(Data("focus your target field… inserting in \(d)s\n".utf8))
         Thread.sleep(forTimeInterval: d)
     }
-    let result = engine.insert(text)
+    let result = engine.insert(text, copyToClipboard: args.contains("--copy"))
     printJSON(result)
     exit(result.inserted ? 0 : 1)
 

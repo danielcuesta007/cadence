@@ -64,6 +64,10 @@ impl PartialScheduler {
         window_len.saturating_sub(self.tail_window)
     }
 
+    pub fn tail_window(&self) -> usize {
+        self.tail_window
+    }
+
     /// New utterance boundary: forget all accumulated audio and any in-flight partial.
     pub fn reset(&mut self) {
         self.total = 0;

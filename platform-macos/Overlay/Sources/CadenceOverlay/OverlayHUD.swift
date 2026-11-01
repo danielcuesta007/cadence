@@ -19,6 +19,20 @@ public final class OverlayHUD {
     private let partialLabel = NSTextField(labelWithString: "")
     private let chipLabel = NSTextField(labelWithString: "")
     private var fadeWork: DispatchWorkItem?
+    private var handsFree = false
+    public func setHandsFree(_ on: Bool) {
+        handsFree = on
+        if !levelLabel.isHidden {
+            glyphLabel.stringValue = on ? "● hands-free · double-tap to finish" : "● listening"
+            fitAndPosition()
+        }
+    }
+    public func setDelivery(_ text: String) {
+        if text.hasPrefix("Not inserted") { glyphLabel.stringValue = "↳ ready to paste" }
+        if text.hasPrefix("Sent") { glyphLabel.stringValue = "↳ sent" }
+        chipLabel.stringValue = text
+        fitAndPosition()
+    }
 
     private static let bars: [Character] = ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"]
     private var levelHistory = String(repeating: "▁", count: 10)
@@ -54,6 +68,9 @@ public final class OverlayHUD {
         partialLabel.font = .systemFont(ofSize: 13)
         partialLabel.lineBreakMode = .byTruncatingHead
         partialLabel.maximumNumberOfLines = 1
+        chipLabel.maximumNumberOfLines = 1
+        chipLabel.lineBreakMode = .byTruncatingTail
+        chipLabel.widthAnchor.constraint(lessThanOrEqualToConstant: 240).isActive = true
         chipLabel.font = .systemFont(ofSize: 11, weight: .medium)
         chipLabel.textColor = .secondaryLabelColor
 
@@ -91,12 +108,12 @@ public final class OverlayHUD {
         fadeWork = nil
         let glyph: String
         switch state {
-        case "listening": glyph = "● listening"
+        case "listening": glyph = handsFree ? "● hands-free · double-tap to finish" : "● listening"
         case "thinking": glyph = "✦ thinking"
         case "inserting": glyph = "↳ inserting"
         case "done": glyph = "✓ done"
         case "cancelled": glyph = "✕ cancelled"
-        case "error": glyph = "⚠︎ saved to clipboard"
+        case "error": glyph = "⚠︎ not inserted"
         case "disabled": glyph = "‖ off here"
         case "verbatim_on": glyph = "¶ verbatim on"
         case "verbatim_off": glyph = "¶ cleanup on"
