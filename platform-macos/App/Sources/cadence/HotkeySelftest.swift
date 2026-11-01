@@ -173,6 +173,59 @@ func runHotkeySelftest() -> Int32 {
                   == AppDelegate.statusSymbol(state: "listening", verbatim: false))
     }
 
+    // Timestamp-driven gestures: no sleeping and no global key synthesis.
+    for key in [PTTKey.primary, .secondary] {
+        var a = PTTArbiter()
+        func edge(_ down: Bool, _ now: Double, _ mods: Bool = false) -> PTTArbiter.Decision {
+            a.resolve(key: key, down: down, otherModifiers: mods, now: now, handsFree: true)
+        }
+        check("\(key)_first_tap_starts", edge(true, 0) == .start(key))
+        check("\(key)_first_release_waits", edge(false, 0.05) == .ignore)
+        check("\(key)_grace_not_expired", a.expire(now: 0.2) == .ignore)
+        check("\(key)_second_down_no_restart", edge(true, 0.21) == .ignore)
+        check("\(key)_second_release_latches", edge(false, 0.25) == .ignore && a.latched)
+        check("\(key)_latched_does_not_expire", a.expire(now: 20) == .ignore && a.latched)
+        check("\(key)_typing_keeps_recording", a.retract() == .ignore && a.latched)
+        _ = edge(true, 21); _ = edge(false, 21.05)
+        check("\(key)_one_tap_does_not_finish", a.expire(now: 22) == .ignore && a.latched)
+        _ = edge(true, 23); _ = edge(false, 23.05)
+        _ = edge(true, 23.15)
+        check("\(key)_double_tap_finishes", edge(false, 23.2) == .stop(key) && a.held == nil)
+        _ = edge(true, 30)
+        check("\(key)_hold_stops_without_delay", edge(false, 32) == .stop(key))
+        _ = edge(true, 40); _ = edge(false, 40.05)
+        check("\(key)_single_tap_eventually_stops", a.expire(now: 40.36) == .stop(key))
+        _ = edge(true, 50); _ = edge(false, 50.05)
+        _ = edge(true, 50.15); _ = edge(false, 50.2)
+        a.reset()
+        check("\(key)_cancel_clears_latch", !a.latched && a.held == nil && a.deadline == nil)
+        check("\(key)_shortcut_cannot_start", edge(true, 60, true) == .ignore)
+    }
+    do {
+        var a = PTTArbiter()
+        _ = a.resolve(key: .primary, down: true, otherModifiers: false, now: 0, handsFree: true)
+        _ = a.resolve(key: .primary, down: false, otherModifiers: false, now: 0.05, handsFree: true)
+        check("mixed_keys_cannot_latch", a.resolve(key: .secondary, down: true,
+              otherModifiers: false, now: 0.1, handsFree: true) == .ignore && !a.latched)
+    }
+
+    do {
+        var a = PTTArbiter()
+        func edge(_ down: Bool, _ now: Double) -> PTTArbiter.Decision {
+            a.resolve(key: .primary, down: down, otherModifiers: false, now: now, handsFree: true)
+        }
+        _ = edge(true, 0); _ = edge(false, 0.05)
+        _ = edge(true, 0.15)
+        check("second_long_hold_does_not_latch", edge(false, 2) == .stop(.primary) && !a.latched)
+        _ = edge(true, 3); _ = edge(false, 3.05)
+        _ = edge(true, 3.15); _ = edge(false, 3.2)
+        _ = edge(true, 4)
+        _ = a.retract() // Option+letter while hands-free: not a stop tap.
+        _ = edge(false, 4.05)
+        _ = edge(true, 4.15); _ = edge(false, 4.2)
+        check("shortcut_breaks_stop_double_tap", a.latched)
+    }
+
     let pass = checks.allSatisfy { $0.pass }
     struct Report: Encodable {
         let checks: [HotkeyCheck]

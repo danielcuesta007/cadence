@@ -97,6 +97,7 @@ func parseArgs() -> Config {
         case "selftest-stats": c.mode = "selftest-stats"
         case "selftest-store": c.mode = "selftest-store"
         case "selftest-hotkeys": c.mode = "selftest-hotkeys"
+        case "selftest-delivery": c.mode = "selftest-delivery"
         case "selftest-appearance": c.mode = "selftest-appearance"
         case "login-item": c.mode = "login-item"
         case "doctor": c.mode = "doctor"
@@ -132,6 +133,8 @@ case "selftest-stats":
     exit(runStatsSelftest())
 case "selftest-store":
     exit(runStoreSelftest())
+case "selftest-delivery":
+    exit(runDeliverySelftest())
 case "selftest-hotkeys":
     exit(runHotkeySelftest())
 case "selftest-appearance":

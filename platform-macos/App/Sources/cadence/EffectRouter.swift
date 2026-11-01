@@ -28,6 +28,16 @@ final class EffectRouter {
     /// §24 retained audio: opt-in check, read at capture start (the composition root caches
     /// the setting; default off — never accumulate audio the user didn't ask to keep).
     var retainAudioEnabled: () -> Bool = { false }
+    var copyDictationsEnabled: () -> Bool = { true }
+    var liveInsertionEnabled: () -> Bool = { false }
+    // Session state is owned exclusively by insertionQueue; delivery is main-queue UI state.
+    private var liveSession: LiveInsertionSession?
+    private var liveTranscript = LiveTranscript()
+    private var liveStartedAt: TimeInterval = 0
+    private var copyThisDictation = false
+    private var delivery = "local"
+    private var deliveryGeneration = 0
+
 
     // Per-utterance audio accumulator (§24). Chunks arrive on the capture callback thread;
     // start/stop flips on uiQueue; persist reads on the core thread — lock-guarded. At
@@ -161,6 +171,11 @@ final class EffectRouter {
             onUI { self.stopCapture() }
         case "discard_capture":
             onUI {
+                self.deliveryGeneration += 1
+                self.insertionQueue.async {
+                    self.liveSession?.cancel()
+                    self.liveSession = nil
+                }
                 self.capture?.stop()
                 // Cancelled utterance: nothing persists, audio included.
                 self.setRetaining(false, clear: true)
@@ -179,6 +194,9 @@ final class EffectRouter {
                     self.overlay?.scheduleFade(after: 0)
                 } else {
                     self.overlay?.show(state: state, chip: chip)
+                    if ["listening", "thinking", "inserting", "done"].contains(state) {
+                        self.overlay?.setDelivery(self.delivery)
+                    }
                 }
             }
         case "update_waveform":
@@ -192,14 +210,31 @@ final class EffectRouter {
             if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 setMetric("transcript_instant", text)
             }
-            onUI { self.overlay?.setPartial(text) }
+            onUI {
+                self.overlay?.setPartial(text)
+                let generation = self.deliveryGeneration
+                self.insertionQueue.async {
+                    guard let session = self.liveSession else { return }
+                    let sliding = ProcessInfo.processInfo.systemUptime - self.liveStartedAt > 8
+                    let preview = self.liveTranscript.update(text, sliding: sliding)
+                    guard !preview.isEmpty else { return }
+                    let wrote = session.update(preview)
+                    self.onUI {
+                        guard self.deliveryGeneration == generation, self.activeState == "listening" else { return }
+                        self.delivery = wrote ? "Live preview · provisional" : "Preview paused · ⌘V after finish"
+                        self.overlay?.setDelivery(self.delivery)
+                    }
+                }
+            }
         case "run_insertion":
-            insertionQueue.async { self.runInsertion(obj) }
+            onUI { self.insertionQueue.async { self.runInsertion(obj) } }
         case "notify_text_on_clipboard":
             let text = obj["text"] as? String ?? ""
             onUI {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(text, forType: .string)
+                self.delivery = "Not inserted · ⌘V to paste"
+                self.overlay?.setDelivery(self.delivery)
                 self.log("words preserved on clipboard (\(text.count) chars)")
             }
         case "persist_utterance":
@@ -225,6 +260,10 @@ final class EffectRouter {
             // it in between (release review #31).
             let inserted = lastInsertedText
             onUI {
+                self.insertionQueue.async {
+                    self.liveSession?.cancel()
+                    self.liveSession = nil
+                }
                 self.activeState = "idle"
                 self.overlay?.scheduleFade()
                 self.statusUpdate?("idle")
@@ -244,6 +283,26 @@ final class EffectRouter {
             return
         }
         let t0 = Date()
+        let live = liveInsertionEnabled()
+        let copy = copyDictationsEnabled()
+        let app = NSWorkspace.shared.frontmostApplication?.localizedName ?? "active app"
+        deliveryGeneration += 1
+        let generation = deliveryGeneration
+        delivery = "Preview · \(app)"
+        insertionQueue.async {
+            self.liveSession?.cancel()
+            self.liveSession = live ? LiveInsertionSession.focused() : nil
+            self.liveTranscript = LiveTranscript()
+            self.liveStartedAt = ProcessInfo.processInfo.systemUptime
+            self.copyThisDictation = copy
+            if live && self.liveSession == nil {
+                self.onUI {
+                    guard self.deliveryGeneration == generation, self.activeState == "listening" else { return }
+                    self.delivery = "Live unavailable · inserts on finish"
+                    self.overlay?.setDelivery(self.delivery)
+                }
+            }
+        }
         // Arm the accumulator before the tap starts so the first chunk is never missed;
         // clear stale audio from any utterance that ended without a persist.
         setRetaining(retainAudioEnabled(), clear: true)
@@ -286,7 +345,31 @@ final class EffectRouter {
             return
         }
         lastInsertedText = text
-        let result = insertionEngine.insert(text)
+        let result: InsertionResult
+        let liveFinish = liveSession?.finish(text) ?? .unused
+        liveSession = nil // committed previews must never be cancelled at fade-to-idle
+        switch liveFinish {
+        case .unused:
+            result = insertionEngine.insert(text, copyToClipboard: copyThisDictation)
+        case .inserted, .recovery:
+            let inserted = liveFinish == .inserted
+            if copyThisDictation || !inserted {
+                ClipboardRecovery.prepare(text, enabled: true)
+            }
+            result = InsertionResult(strategy: inserted ? .direct : .clipboardNotify,
+                                     inserted: inserted, verification: inserted ? .verified : .contradicted,
+                                     clipboardRestored: !copyThisDictation && inserted,
+                                     refusedSecureField: false, elapsedMs: 0,
+                                     detail: inserted ? "live preview finalized" : "preview changed; final text on clipboard")
+        }
+        let copied = copyThisDictation
+        onUI {
+            self.delivery = result.inserted
+                ? (result.verification == .verified ? "Inserted" : "Sent · not confirmed")
+                    + (copied ? " · ⌘V available" : "")
+                : "Not inserted · ⌘V to paste"
+            self.overlay?.setDelivery(self.delivery)
+        }
         let strategy: String
         switch result.strategy {
         case .direct: strategy = "direct"

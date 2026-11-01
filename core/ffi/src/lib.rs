@@ -34,8 +34,10 @@ use cadence_ipc::{
 };
 use cadence_orchestrator::{Orchestrator, PartialScheduler, RingBuffer};
 
-/// 60 s of 16 kHz mono i16 — the PTT window bound; older audio is dropped (and counted).
-const RING_CAPACITY: usize = 16_000 * 60;
+/// Long-form capture: 30 minutes (57.6 MB), automatically finalized at 29 minutes.
+/// The spare minute covers capture-stop/drain latency without losing the opening.
+const RING_CAPACITY: usize = 16_000 * 60 * 30;
+const FINALIZE_SAMPLE_LIMIT: usize = 16_000 * 60 * 29;
 /// How long the core waits for the shell's `capture_stopped` before draining anyway.
 const CAPTURE_STOP_GRACE: Duration = Duration::from_millis(500);
 
@@ -125,7 +127,13 @@ impl OrchLoop {
                     };
                     self.pump(ev);
                     if let Some(samples) = audio {
-                        self.maybe_dispatch_partial(samples);
+                        if self.machine.state() == State::Listening
+                            && self.ring.lock().unwrap().len() >= FINALIZE_SAMPLE_LIMIT
+                        {
+                            self.pump(Event::TriggerUp);
+                        } else {
+                            self.maybe_dispatch_partial(samples);
+                        }
                     }
                 }
                 Control::CaptureStopped => self.drain_to_asr(),
@@ -151,13 +159,7 @@ impl OrchLoop {
             return;
         };
         if self.partials.on_audio(samples) {
-            let mut window = self.ring.lock().unwrap().snapshot();
-            // Sliding tail (§12.3): long dictations decode only the recent window, keeping
-            // each partial O(tail) and inside the capped encoder's coverage.
-            let start = self.partials.window_start(window.len());
-            if start > 0 {
-                window.drain(..start);
-            }
+            let window = self.ring.lock().unwrap().snapshot_tail(self.partials.tail_window());
             if self
                 .asr_tx
                 .send(AsrJob::Partial { utterance, window })
@@ -1290,6 +1292,26 @@ mod tests {
     fn push_chunk(h: &Harness, samples: usize) {
         let pcm = vec![100i16; samples];
         unsafe { cadence_engine_push_audio(h.engine, pcm.as_ptr(), pcm.len(), 0.5) };
+    }
+
+    #[test]
+    fn long_recording_keeps_opening_audio_past_one_minute() {
+        let mut ring = RingBuffer::new(RING_CAPACITY);
+        ring.push(&[1234]);
+        ring.push(&vec![0; 16_000 * 61]);
+        assert_eq!(ring.dropped(), 0);
+        assert_eq!(ring.snapshot()[0], 1234);
+    }
+
+    #[test]
+    fn long_recording_auto_finalizes_before_buffer_overflow() {
+        let h = Harness::new();
+        unsafe { cadence_engine_trigger_down(h.engine, false) };
+        h.expect("start_capture");
+        push_chunk(&h, FINALIZE_SAMPLE_LIMIT);
+        h.expect("stop_capture");
+        unsafe { cadence_engine_capture_stopped(h.engine) };
+        h.expect("run_insertion");
     }
 
     #[test]

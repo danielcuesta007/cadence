@@ -35,6 +35,12 @@ public struct InsertionResult: Codable {
     public var refusedSecureField: Bool
     public var elapsedMs: Int
     public var detail: String
+    public init(strategy: Strategy, inserted: Bool, verification: Verification,
+                clipboardRestored: Bool, refusedSecureField: Bool, elapsedMs: Int, detail: String) {
+        self.strategy = strategy; self.inserted = inserted; self.verification = verification
+        self.clipboardRestored = clipboardRestored; self.refusedSecureField = refusedSecureField
+        self.elapsedMs = elapsedMs; self.detail = detail
+    }
 }
 
 public struct CapabilityReport: Codable {
@@ -99,7 +105,7 @@ public final class InsertionEngine {
 
     // MARK: the cascade
 
-    public func insert(_ text: String) -> InsertionResult {
+    public func insert(_ text: String, copyToClipboard: Bool = false) -> InsertionResult {
         let start = Date()
         func done(_ s: Strategy, _ ok: Bool, verify: Verification = .unverifiable,
                   restored: Bool, refused: Bool = false,
@@ -120,6 +126,11 @@ public final class InsertionEngine {
             return done(.clipboardNotify, false, restored: true, refused: true,
                         "focused element is a secure text field — refusing")
         }
+
+        // User-selected recovery policy: seed the clipboard before either insertion path.
+        // Paste's snapshot/restore then preserves this dictation too; later third-party
+        // clipboard writes are still protected by the existing change-count guard.
+        ClipboardRecovery.prepare(text, enabled: copyToClipboard)
 
         // Strategy 1: direct AX insertion at the caret, off-thread, deadline-bounded.
         if AXIsProcessTrusted() {
@@ -510,5 +521,14 @@ public struct ClipboardSnapshot {
         }
         pb.writeObjects(restored)
         return true
+    }
+}
+
+/// Shared by direct insertion and live-finalization; injectable pasteboard for tests.
+public enum ClipboardRecovery {
+    public static func prepare(_ text: String, enabled: Bool, on pb: NSPasteboard = .general) {
+        guard enabled, !text.isEmpty else { return }
+        pb.clearContents()
+        pb.setString(text, forType: .string)
     }
 }
