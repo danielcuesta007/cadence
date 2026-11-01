@@ -23,7 +23,7 @@ public final class OverlayHUD {
     public func setHandsFree(_ on: Bool) {
         handsFree = on
         if !levelLabel.isHidden {
-            glyphLabel.stringValue = on ? "● hands-free · double-tap to finish" : "● listening"
+            glyphLabel.stringValue = on ? "● hands-free · tap to finish" : "● listening"
             fitAndPosition()
         }
     }
@@ -108,7 +108,7 @@ public final class OverlayHUD {
         fadeWork = nil
         let glyph: String
         switch state {
-        case "listening": glyph = handsFree ? "● hands-free · double-tap to finish" : "● listening"
+        case "listening": glyph = handsFree ? "● hands-free · tap to finish" : "● listening"
         case "thinking": glyph = "✦ thinking"
         case "inserting": glyph = "↳ inserting"
         case "done": glyph = "✓ done"

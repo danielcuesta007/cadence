@@ -20,20 +20,25 @@ UX spec + roadmap). Progress: [`docs/STATUS.md`](docs/STATUS.md) · Decisions:
 
 Hold either Option key to dictate as before. Or **quickly double-tap the same Option key**
 (two short taps, within 300 ms) to start hands-free dictation. The pill says **hands-free**;
-double-tap that key again to finish and insert. Right-Option and Left-Option keep their own
+tap that key once to finish and insert. Right-Option and Left-Option keep their own
 language assignments. Escape cancels. A single short tap finishes after the double-tap
 window; releasing a normal hold finishes immediately. Option shortcuts still work.
 Recordings automatically finish at 29 minutes so the audio buffer cannot silently discard
 the beginning. Streaming previews copy only the recent eight seconds of audio.
 
-Open the Cadence menu → **Dictation Settings**:
+Open the Cadence menu → **Dictation Settings**. Read-only **Input** and **Voice filtering**
+labels report the actual capture device and processing state (including any fallback).
+The Mac microphone is preferred by default; earbud playback does not mean the earbud
+microphone is recording. Voice Isolation stays experimental and opt-in.
+
+Settings:
 
 - **Keep Latest Dictation on Clipboard** (on by default): the completed text is ready for
   Command-V even when insertion reports success, so you can recover a missed target.
   Turn it off to preserve your previous clipboard after successful insertion. Failed
   insertion still copies the text for recovery. A newer clipboard write during the paste
   transaction is preserved.
-- **Double-Tap Option for Hands-Free** (on by default): turn off for hold-only controls.
+- **Double-Tap to Start Hands-Free** (on by default): turn off for hold-only controls.
 - **Experimental Features → Live Insertion (Supported Fields)** (off by default): provisional
   words appear in readable, editable Accessibility fields while you speak; the final
   transcript replaces the preview once. This does not send/submit a form or press Return.

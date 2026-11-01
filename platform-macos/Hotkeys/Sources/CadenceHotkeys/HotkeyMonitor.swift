@@ -91,20 +91,19 @@ public struct PTTArbiter {
         guard held == key, physicalDown else { return .ignore }
         physicalDown = false
         let quick = now - pressedAt <= Self.tapWindow
+        // The second tap that STARTS hands-free is consumed by the branch below.
+        // Once latched, one clean owner-key release finishes. Chords/typing call
+        // retract(), clearing physicalDown, so their releases cannot finish speech.
+        if latched {
+            reset()
+            return .stop(key)
+        }
         if secondTap && quick {
             secondTap = false
-            if latched {
-                reset()
-                return .stop(key)
-            }
             latched = true
             return .ignore
         }
         secondTap = false
-        if latched {
-            deadline = quick ? now + Self.tapWindow : nil
-            return .ignore
-        }
         if quick {
             deadline = now + Self.tapWindow
             return .ignore
