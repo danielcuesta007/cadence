@@ -8,6 +8,7 @@ members = [
     "core/models",
     "core/store",
     "core/ffi",
+    "core/extensions",
     "tools/headless",
 ]
 

@@ -239,11 +239,32 @@ Model: ~/cadence/models/artifacts/ggml-small.bin (pin 1be3a9b2…; pass CADENCE_
 Other worktrees (capture-latency, dictation-controls, readiness, ~/cadence) hold uncommitted
 research: do not reset or stash them.
 
-**Steps 15 + 16 are merged to dev (PR #85, #89 → 9986bf2), NOT released; main is still
-3120677.** releases.json has 0.1.6 (11) as unreleased. 0.1.6 (11) is installed and running on
-Daniel's Mac (core ready 492 ms, model pin verified, minos 14.0, stable signer). Rollbacks:
-~/Applications/Cadence.app.pre-v016b11-20261102T095843 (0.1.6 b10) and
-~/Applications/Cadence.app.pre-v016-20261102T071257 (0.1.5 b9).
+**0.1.7 (13) — caption-filter fix release (Daniel: "push go fix merge", 2 Nov 2026).**
+#97 fixed issue #95: removing a noise caption only tidies its own gap, and "[Music] .5 mg"
+no longer becomes "5 mg" (a 10x dose bug that shipped in 0.1.6). See "How releases work now".
+
+**0.1.6 (12) is RELEASED (2 Nov 2026, Daniel approved).** Tag v0.1.6 at 9253558; release
+https://github.com/danielcuesta007/cadence/releases/tag/v0.1.6, Cadence.dmg sha256
+`7e1933c358aa05451e77b2749e5bb96cc34d8ddd0aa4232c83580ff5546d16d3` (the downloaded asset
+was checked against it). main b72a0db (release PR #94 = #85 #88-#93, merge commit, dev kept).
+Site deployed from main, and the live download page, install.sh and cask all name 0.1.6.
+Installed on Daniel's Mac: the exact binary from the DMG. Rollbacks:
+~/Applications/Cadence.app.pre-v016b12-20261102T124437 (0.1.6 b11),
+~/Applications/Cadence.app.pre-v016b11-20261102T095843 (b10),
+~/Applications/Cadence.app.pre-v016-20261102T071257 (0.1.5).
+
+**Mic choice (PR #91, Daniel: "auto choose the headphone mic if there are earbuds in"):**
+"Always Use Built-in Microphone" now defaults to OFF. RoutePolicy.pinTarget works like this:
+if the macOS default input is Bluetooth, use it; if it is another non-built-in mic (such as
+USB), follow the default; otherwise use the first connected Bluetooth mic. USB is never
+treated as a headset. A device-list listener re-picks the mic when earbuds come and go.
+Trade-off: dictating through AirPods puts them in call mode (music drops to call quality).
+**Empty results are now logged** (#92): "utt-N: nothing usable heard …". Before this, a
+dictation where only noise was heard left no trace in the log (Daniel's 12:47 dining-hall capture).
+
+**First field data (dining hall, 2 Nov, Noisy Room Mode OFF):** capture used the AirPods mic
+at 48 kHz. Daniel: "the first half of that dictation was right, the second was not". One
+7.4 s capture came back empty.
 
 ## Step 16 — Noisy Room Mode, and a macOS 14 build fix (2026-11-02)
 
@@ -271,15 +292,12 @@ Daniel's Mac (core ready 492 ms, model pin verified, minos 14.0, stable signer).
   (8 findings, 7 fixed, 1 explained on the PR).
 
 **NEXT (Step 17):**
-1. Daniel dictates on 0.1.6 (11) somewhere loud, once with Noisy Room Mode off and once with
-   it on (same kind of room). Check ~/.cadence/logs/cadence.log: the real mic is named (no bare
-   `CADefaultDeviceAggregate`), there is no `pin=FAILED`, no "[...]"/"(music)" text was typed,
-   and the core-ready/toggle lines show which mode ran. Ask him whether on-mode felt worth the
-   wait.
-2. If that's clean and Daniel approves: release 0.1.6 (build 11) per "How releases work now".
-3. After that: a consented live A/B of Voice Isolation, or a background-speech gate (keep only
-   the loudest, closest talker). Never claim a real-room improvement without a measurement.
-Still pending: Daniel's real keyboard test of the 0.1.5 gesture.
+1. Daniel dictates in the dining hall with Noisy Room Mode ON. Compare against the OFF run
+   above (ask him what was said vs typed; the history is encrypted). Check the log for
+   "nothing usable heard" lines.
+2. If voices still win: a background-speech gate (keep only the loudest, closest talker), or
+   a consented Voice Isolation A/B now that the AirPods mic is in use.
+3. Issue #95: strip_non_speech re-tidies spacing beyond the removed caption (low impact).
 
 ## Favicon cleanup and public-download verification (2026-10-29)
 
