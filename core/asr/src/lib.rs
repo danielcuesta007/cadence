@@ -465,8 +465,27 @@ pub fn strip_non_speech(text: &str) -> String {
                     dropped_at_start = true;
                 }
                 dropped = true;
-                out.push(' ');
-                i += len;
+                // Close only the gap this caption leaves (issue #95): spaces/tabs on both sides
+                // go, then one space rejoins the halves unless a line break or closing
+                // punctuation already separates them. Everything else stays as dictated.
+                while out.ends_with([' ', '\t']) {
+                    out.pop();
+                }
+                let mut j = i + len;
+                while j < chars.len() && matches!(chars[j], ' ' | '\t') {
+                    j += 1;
+                }
+                let next = chars.get(j).copied();
+                if out.ends_with('\n') && next == Some('\n') {
+                    j += 1; // "line one\n[Music]\nline two" keeps one line break, not two
+                }
+                let joins = !out.is_empty()
+                    && !out.ends_with('\n')
+                    && !matches!(next, None | Some('\n' | ',' | '.' | '!' | '?' | ';' | ':'));
+                if joins {
+                    out.push(' ');
+                }
+                i = j;
                 continue;
             }
         }
@@ -477,16 +496,7 @@ pub fn strip_non_speech(text: &str) -> String {
     if !dropped {
         return text.trim().to_string();
     }
-    // Something was removed: close the gap it left (double spaces, " ," before punctuation).
-    let collapsed = out.split_whitespace().collect::<Vec<_>>().join(" ");
-    let mut tidy = String::with_capacity(collapsed.len());
-    for ch in collapsed.chars() {
-        if matches!(ch, ',' | '.' | '!' | '?' | ';' | ':') && tidy.ends_with(' ') {
-            tidy.pop();
-        }
-        tidy.push(ch);
-    }
-    let tidy = tidy.trim();
+    let tidy = out.trim();
     if dropped_at_start {
         // "[Music], send it" → "send it": only when the caption itself opened the text.
         tidy.trim_start_matches([',', '.', ';', ':']).trim().to_string()
@@ -587,6 +597,16 @@ mod tests {
         // Typical whisper captions with modifiers.
         assert_eq!(strip_non_speech("(speaking in foreign language)"), "");
         assert_eq!(strip_non_speech("(crowd chattering) Hi."), "Hi.");
+    }
+
+    #[test]
+    fn removing_a_caption_only_tidies_its_own_gap() {
+        // Issue #95: a dropped caption used to re-space the WHOLE transcript.
+        assert_eq!(strip_non_speech("line one\n[Music]\nline two"), "line one\nline two");
+        assert_eq!(strip_non_speech("ratio 3 : 1 (coughs)"), "ratio 3 : 1");
+        assert_eq!(strip_non_speech("a  b [Music] c"), "a  b c");
+        assert_eq!(strip_non_speech("first.\n[applause] Second"), "first.\nSecond");
+        assert_eq!(strip_non_speech("[Music], send it"), "send it");
     }
 
     #[test]
