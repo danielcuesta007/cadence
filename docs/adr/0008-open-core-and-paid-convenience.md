@@ -57,6 +57,10 @@ Two paid layers on top of a free, MIT, public core.
 
 ## Order of work (gates, not dates)
 
+The public version of these gates and of the free-forever list is the site's Promises page,
+`site/promises.html` (https://cadence-dictation.pages.dev/promises). A site test fails if its
+"Free forever" list loses an item; change both together.
+
 1. **Keep the repo public and MIT through TreeHacks 2027** (decisions late December 2026,
    event 12–14 Feb 2027). The application links the repo and calls it open source.
 2. **Clear the open questions in `docs/legal/READINESS.md` before taking money:** the name

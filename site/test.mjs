@@ -527,3 +527,26 @@ test('a released version can never be re-stamped with a different checksum', () 
   assert.throws(() => stamp(JSON.parse(JSON.stringify(d)), top.version, 'd'.repeat(64), '2026-11-05'), /already recorded/);
   assert.doesNotThrow(() => stamp(JSON.parse(JSON.stringify(d)), top.version, 'c'.repeat(64), '2026-11-02'));
 });
+
+// 2 Nov (ADR-0008): the open-core promises are a public commitment in Daniel's name. If the
+// "Free forever" list or the never-paywalled lines disappear or shrink, this fails.
+test('the promises page keeps every free-forever promise', () => {
+  const promises = pages['promises.html'];
+  assert.ok(promises, 'promises.html ships');
+  assert.ok(SHIPPED.includes('promises.html'));
+  assert.match(promises, /<h2 id="free-forever">Free forever<\/h2>/);
+  const list = promises.match(/<ul class="dash-list" data-promise="free-forever">([\s\S]*?)<\/ul>/);
+  assert.ok(list, 'the Free forever list is on the page');
+  const items = [...list[1].matchAll(/<li>([^<]+)<\/li>/g)].map(m => m[1]);
+  for (const promise of [/^Dictation in any app\.$/, /^On-device speech recognition\.$/, /^Both language keys/, /^Encrypted history\.$/, /^Noisy Room Mode\.$/, /^Anything already shipped for free\.$/])
+    assert.ok(items.some(i => promise.test(i)), `Free forever still promises ${promise}`);
+  assert.match(promises, /no accounts and no tracking/);
+  assert.match(promises, /check works offline/);
+  assert.match(promises, /Every version already released stays MIT licensed/);
+  // Checkpoints stay in order, and the only date on the page's plan is TreeHacks.
+  const steps = [...promises.matchAll(/<li><span class="release-tag[^"]*">[^<]+<\/span><p><b>([^<]+)<\/b>/g)].map(m => m[1]);
+  assert.equal(steps.length, 5);
+  assert.match(steps[0], /TreeHacks, February 2027/);
+  assert.match(steps[4], /^Ship the paid build/);
+  assert.doesNotMatch(promises.replace(steps[0], ''), /\b20(2[7-9]|3\d)\b/, 'no dates on paid features');
+});

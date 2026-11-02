@@ -293,6 +293,10 @@ tools/              headless CLI and local toolchain helpers
 
 ## License
 
+What stays free forever, what is never paywalled, and the checkpoints ahead are public
+promises on the site: [cadence-dictation.pages.dev/promises](https://cadence-dictation.pages.dev/promises)
+(source `site/promises.html`, decision in [ADR-0008](docs/adr/0008-open-core-and-paid-convenience.md)).
+
 MIT — see [LICENSE](LICENSE). Note that the vendored dependencies carry their own terms that
 continue to apply to any built artifact: whisper.cpp and ggml (MIT), SQLCipher (BSD-style),
 OpenSSL (Apache-2.0). Model weights are downloaded from their publishers under their own terms
