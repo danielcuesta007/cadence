@@ -370,13 +370,14 @@ final class HistoryStore {
 
     // MARK: input device preference
 
-    /// Prefer the built-in mic over Bluetooth headsets (default ON — HFP telephony audio
-    /// wrecks ASR quality and the user's music). Stored as "off" only when disabled.
+    /// Always use the built-in mic (default OFF since 2 Nov 2026: with earbuds in, their mic
+    /// is used — closer to your mouth in a loud room; music drops to call quality while
+    /// dictating). Only an explicit "on" forces the built-in mic.
     var preferBuiltInMic: Bool {
         guard let handle, let c = cadence_store_setting_get(handle, "prefer_builtin_mic")
-        else { return true }
+        else { return false }
         defer { cadence_string_free(c) }
-        return String(cString: c) != "off"
+        return String(cString: c) == "on"
     }
 
     func setPreferBuiltInMic(_ on: Bool) {

@@ -11,8 +11,9 @@ import CoreAudio
 
 public enum PinState: Equatable {
     /// Not attempted yet on this engine (fresh engine, before the first tap build).
+    /// `.held`/`.failed` refer to whichever mic RoutePolicy.pinTarget chose.
     case pending
-    /// Preference off: following the system default input on purpose.
+    /// Nothing to pin (no headset connected, built-in not forced): following the system default.
     case off
     /// No built-in input device exists (Mac mini with nothing plugged in, etc.).
     case noBuiltIn
@@ -75,7 +76,7 @@ public struct InputRoute: Equatable {
         var parts = [name, "\(sampleRate / 1000) kHz"]
         // Voice processing has its own menu line ("Voice filtering: …"); not repeated here.
         if mayBeHeadsetMic { parts.append("headset mic, lower quality") }
-        if case .failed = pin { parts.append("couldn't switch to built-in") }
+        if case .failed = pin { parts.append("couldn't switch mic") }
         return parts.joined(separator: " \u{00B7} ")
     }
 
@@ -87,7 +88,35 @@ public struct InputRoute: Equatable {
     }
 }
 
+/// One input-capable CoreAudio device, as the mic picker sees it.
+public struct InputCandidate: Equatable {
+    public var id: UInt32
+    public var transport: UInt32
+    public init(id: UInt32, transport: UInt32) {
+        self.id = id
+        self.transport = transport
+    }
+}
+
 public enum RoutePolicy {
+    /// Which mic capture should pin, or nil to follow the system default input.
+    ///
+    /// - preferBuiltIn ("Always Use Built-in Microphone", default OFF): the built-in mic.
+    /// - otherwise: a connected headset mic — Bluetooth (AirPods and other earbuds) or USB —
+    ///   because with earbuds in, the mic at your mouth beats a laptop mic across the table in a
+    ///   loud room (Daniel, 2 Nov 2026: "choose the headphone mic if there are earbuds in").
+    ///   Bluetooth comes first: plugged-in USB audio is more often an interface than a headset.
+    ///   Virtual, aggregate and iPhone (Continuity) inputs are never picked on their own.
+    ///   No headset → nil: the system default (normally the built-in mic or a wired headset).
+    public static func pinTarget(preferBuiltIn: Bool, devices: [InputCandidate]) -> UInt32? {
+        func first(_ transports: [UInt32]) -> UInt32? {
+            devices.first { transports.contains($0.transport) }?.id
+        }
+        if preferBuiltIn { return first([kAudioDeviceTransportTypeBuiltIn]) }
+        return first([kAudioDeviceTransportTypeBluetooth, kAudioDeviceTransportTypeBluetoothLE])
+            ?? first([kAudioDeviceTransportTypeUSB])
+    }
+
     /// Should the warm path re-apply the built-in pin before starting?
     ///
     /// - wanted: the user's "Use Built-in Microphone" preference.

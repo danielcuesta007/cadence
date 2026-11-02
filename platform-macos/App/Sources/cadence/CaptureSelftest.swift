@@ -33,7 +33,7 @@ func runCaptureSelftest() -> Int32 {
     // Menu form: real mic names, plain notes, no aggregate internals.
     check("menu_plain", plain.menuTitle == "MacBook Pro Microphone \u{00B7} 44 kHz")
     check("menu_aggregate_headset_failed",
-          agg.menuTitle == "AirPods \u{00B7} 24 kHz \u{00B7} headset mic, lower quality \u{00B7} couldn't switch to built-in")
+          agg.menuTitle == "AirPods \u{00B7} 24 kHz \u{00B7} headset mic, lower quality \u{00B7} couldn't switch mic")
     check("menu_aggregate_built_in_vp",
           aggBuiltIn.menuTitle == "MacBook Pro Microphone \u{00B7} 44 kHz")
     check("menu_hides_aggregate_name", !agg.menuTitle.contains("CADefault"))
@@ -64,6 +64,25 @@ func runCaptureSelftest() -> Int32 {
     check("pending_pin_is_silent", PinState.pending == .pending
           && InputRoute(deviceName: "Mic", sampleRate: 48000, voiceProcessing: false, pin: .pending)
               .description == "Mic @ 48000 Hz")
+
+    // Mic picker (2 Nov 2026: earbuds in → their mic; "Always Use Built-in" forces the Mac's).
+    let builtInDev = InputCandidate(id: 10, transport: kAudioDeviceTransportTypeBuiltIn)
+    let airpods = InputCandidate(id: 20, transport: kAudioDeviceTransportTypeBluetooth)
+    let bleBuds = InputCandidate(id: 21, transport: kAudioDeviceTransportTypeBluetoothLE)
+    let usb = InputCandidate(id: 30, transport: kAudioDeviceTransportTypeUSB)
+    let iphone = InputCandidate(id: 40, transport: kAudioDeviceTransportTypeContinuityCaptureWireless)
+    let virt = InputCandidate(id: 50, transport: kAudioDeviceTransportTypeVirtual)
+    let aggDev = InputCandidate(id: 60, transport: kAudioDeviceTransportTypeAggregate)
+    func pick(_ builtIn: Bool, _ d: [InputCandidate]) -> UInt32? {
+        RoutePolicy.pinTarget(preferBuiltIn: builtIn, devices: d)
+    }
+    check("pick_earbuds_when_connected", pick(false, [builtInDev, airpods]) == 20)
+    check("pick_ble_earbuds", pick(false, [builtInDev, bleBuds]) == 21)
+    check("pick_bluetooth_over_usb", pick(false, [usb, builtInDev, airpods]) == 20)
+    check("pick_usb_headset_without_bluetooth", pick(false, [builtInDev, usb]) == 30)
+    check("no_headset_follows_default", pick(false, [builtInDev, iphone, virt, aggDev]) == nil)
+    check("always_built_in_wins_over_earbuds", pick(true, [airpods, builtInDev]) == 10)
+    check("always_built_in_without_one", pick(true, [airpods]) == nil)
 
     check("transport_bluetooth", RoutePolicy.transportName(kAudioDeviceTransportTypeBluetooth) == "bluetooth")
     check("transport_ble", RoutePolicy.transportName(kAudioDeviceTransportTypeBluetoothLE) == "bluetooth")
