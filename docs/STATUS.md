@@ -21,6 +21,11 @@ no duplicate finish, ordinary hold, pill wording); planting the old conflated wi
 installed into ~/Applications; physical feel on the keyboard is Daniel's acceptance.
 Known limit: a press after the gap while the previous lone tap is still transcribing is
 rejected as busy (unchanged; longer gap makes it rarer).
+Trade-offs (from review): a press of 0.35 s or less now waits for the gap (0.5 s
+default, up to 0.8 s with slow double-click speed) before stopping, not 0.3 s; and a
+second press inside the gap continues the same recording rather than starting a new one
+(both phrases land in one dictation, nothing is lost). Git: branch fix/forgiving-double-tap,
+PR #76 → dev. NEXT: review/CI/merge, release PR, local install, Daniel's keyboard test.
 
 ## Step 10 — Single-tap finish and microphone visibility (2026-11-01)
 
@@ -101,14 +106,12 @@ v0.1.3 download, app branding and widget instructions remain current.
 
 ## Handoff
 
-Step10 local app update installed2026-11-01: version0.1.4(7), source742e224e03ac008e052b1b725653d2d6840734f9, branchfix/single-tap-finish in ~/cadence-single-tap. Double-tap START / single owner-key tap FINISH; menu version and actual input/voice-filtering labels added. Optimized build + hotkeys74/74, delivery20/20, insertion9/9, packaging5/5; single-tap test failed before fix. Codex implementation-session review posted on PR75 (not independent second review); feature CI pending. PR75→dev, then reviewed dev→main merge still required. No public DMG/tag/site release.
-
-Installed doctor: engine/hotkeys ready, mic/AX authorized, login enabled; version0.1.4(7), PID16073 at verification. Same signing requirement and model; backup ~/Applications/Cadence.app.pre-v014-20261101T184749. Install/doctor receipts in ~/cadence-single-tap/dist/{controls-install-receipt.json,doctor.json}. Older diagnostic backups remain untouched.
-
-Noise suppression remains OPEN and unchanged. Asked Daniel whether music is in earbuds/headphones, Mac speakers or external speakers; answer pending. Actual prior logs show Mac microphone and processing inactive; do not claim improved filtering. Next: compare recording/playback route and consented quiet/music tests, then safe lifecycle/noise work; preserve experimental defaultOFF given prior AUVoiceIO freeze. Correction learning/snippets remain later approved direction.
-
-Daniel explicitly authorizes a temporary7% hard stop this pass; checkpoint and stop at7% for either active quota; no reset/limit changes. Last fresh meter10%weekly/12%five-hour (historical, recheck).
-
+Step 11 (forgiving double-tap) is on PR #76 (fix/forgiving-double-tap → dev). Step 10
+merged to dev as baa6d5f (#75); no dev → main release PR yet; installed app is still
+0.1.4(7) from 742e224. Next: merge #76, release dev → main listing #75 and #76, then
+install locally (rollback ~/Applications/Cadence.app.pre-v014-20261101T184749) and have
+Daniel try the double-tap feel. After that: music/background-speech investigation (Step 10
+notes). The HARD STOP receipt at the end of this file is historical.
 
 ## Favicon cleanup and public-download verification (2026-10-29)
 

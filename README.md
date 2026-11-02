@@ -25,8 +25,9 @@ the pause between the two taps can be relaxed: it follows your macOS double-clic
 0.5 s by default. After the first tap the pill says **tap again for hands-free**; after
 the second it says **hands-free**. Tap that key once to finish and insert (finishing never
 presses Return). Right-Option and Left-Option keep their own language assignments.
-Escape cancels. A single short tap finishes when that pause runs out; releasing a normal
-hold finishes immediately. Option shortcuts still work.
+Escape cancels. A single short tap (or a very brief hold) finishes when that pause runs
+out, so it can take up to the full pause to stop; releasing a normal hold finishes
+immediately. Option shortcuts still work.
 Recordings automatically finish at 29 minutes so the audio buffer cannot silently discard
 the beginning. Streaming previews copy only the recent eight seconds of audio.
 

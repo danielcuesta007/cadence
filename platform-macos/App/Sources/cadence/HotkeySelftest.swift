@@ -285,6 +285,13 @@ func runHotkeySelftest() -> Int32 {
         check("pending_still_open_before_gap", b.expire(now: 0.59) == .ignore && b.awaitingSecondTap)
         check("lone_tap_stops_after_gap", b.expire(now: 0.6) == .stop(.primary) && !b.awaitingSecondTap)
         check("lone_tap_stops_once", b.expire(now: 1) == .ignore)
+        var h = PTTArbiter(timing: t)
+        _ = h.resolve(key: .primary, down: true, otherModifiers: false, now: 0, handsFree: true)
+        _ = h.resolve(key: .primary, down: false, otherModifiers: false, now: 0.1, handsFree: true)
+        _ = h.resolve(key: .primary, down: true, otherModifiers: false, now: 0.5, handsFree: true)
+        check("pending_hint_holds_during_second_press", h.awaitingSecondTap)
+        _ = h.resolve(key: .primary, down: false, otherModifiers: false, now: 0.55, handsFree: true)
+        check("pending_hint_clears_on_latch", h.latched && !h.awaitingSecondTap)
 
         // Hesitant latch, then a single clean tap finishes exactly once (no Return pressed:
         // the arbiter only ever emits start/stop/cancel, insertion never submits).

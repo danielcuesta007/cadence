@@ -98,7 +98,10 @@ public struct PTTArbiter {
 
     /// A tap was released and recording continues while a second tap may still latch
     /// hands-free. The pill says so, so a hesitant user knows the first tap registered.
-    public var awaitingSecondTap: Bool { deadline != nil && !latched && !physicalDown }
+    /// Stays true while the second press is down, so the hint does not flicker off mid-tap.
+    public var awaitingSecondTap: Bool {
+        !latched && ((deadline != nil && !physicalDown) || (secondTap && physicalDown))
+    }
 
     public mutating func resolve(key: PTTKey, down: Bool, otherModifiers: Bool,
                                  now: TimeInterval = 0, handsFree: Bool = false) -> Decision {
@@ -384,24 +387,34 @@ public final class HotkeyMonitor {
         let chordMods: CGEventFlags = [.maskCommand, .maskControl, .maskShift]
         let others = !flags.intersection(chordMods).isEmpty
         // Resolve an elapsed first tap before a later press can steal its pending stop.
-        fire(arbiter.expire(now: ProcessInfo.processInfo.systemUptime))
+        // One clock read: expire and resolve must judge the same instant, or a press landing
+        // on the deadline could be neither a second tap nor a fresh start.
+        let now = ProcessInfo.processInfo.systemUptime
+        fire(arbiter.expire(now: now))
         let wasLatched = arbiter.latched
         if down, arbiter.held == nil { arbiter.timing = timing() }
         fire(arbiter.resolve(key: key, down: down, otherModifiers: others,
-                             now: ProcessInfo.processInfo.systemUptime,
-                             handsFree: handsFreeEnabled()))
+                             now: now, handsFree: handsFreeEnabled()))
         if wasLatched != arbiter.latched { onHandsFreeChanged?(arbiter.latched) }
-        releaseTimer?.invalidate()
-        if let deadline = arbiter.deadline {
-            releaseTimer = Timer(timeInterval: max(0, deadline - ProcessInfo.processInfo.systemUptime),
-                                 repeats: false) { [weak self] _ in
-                guard let self else { return }
-                self.fire(self.arbiter.expire(now: ProcessInfo.processInfo.systemUptime))
-                self.publishTapPending()
-            }
-            RunLoop.main.add(releaseTimer!, forMode: .common)
-        }
+        scheduleExpiry()
         publishTapPending()
+    }
+
+    /// Arms the lone-tap stop. If the timer ever fires before the deadline (run-loop
+    /// coalescing), it re-arms instead of leaving a lone tap recording forever.
+    private func scheduleExpiry() {
+        releaseTimer?.invalidate()
+        releaseTimer = nil
+        guard let deadline = arbiter.deadline else { return }
+        let timer = Timer(timeInterval: max(0, deadline - ProcessInfo.processInfo.systemUptime),
+                          repeats: false) { [weak self] _ in
+            guard let self else { return }
+            self.fire(self.arbiter.expire(now: ProcessInfo.processInfo.systemUptime))
+            self.scheduleExpiry()
+            self.publishTapPending()
+        }
+        releaseTimer = timer
+        RunLoop.main.add(timer, forMode: .common)
     }
 
     /// A non-PTT modifier moved: retract any hold it just turned into a chord.
