@@ -48,6 +48,7 @@ code { font-size:.88em; }
 .site-header nav a:hover { color:var(--blue); }
 .site-header .nav-cta { color:var(--blue-ink); background:var(--blue); padding:0 18px; border-radius:999px; box-shadow:3px 3px 0 var(--pink); }
 .site-header .nav-cta:hover { color:var(--blue-ink); transform:translate(-1px,-1px); box-shadow:4px 4px 0 var(--pink); }
+.site-header nav a[aria-current="page"]:not(.nav-cta) { color:var(--blue); text-decoration:underline; text-decoration-color:var(--pink); text-decoration-thickness:3px; text-underline-offset:8px; }
 
 main > section { padding:var(--section) var(--gutter); }
 main > section > * { max-width:var(--max); margin-left:auto; margin-right:auto; }
@@ -213,6 +214,61 @@ pre { background:var(--paper); border:2px dashed var(--line); border-radius:12px
 .site-footer nav a:hover { color:var(--blue); }
 .fineprint { grid-column:1 / -1; margin:0; padding-top:20px; border-top:1px solid var(--line); font-size:13px; color:var(--muted); }
 
+/* Page heads: every page but home opens with a kicker, one h1 and a lede */
+.page-head { padding-bottom:clamp(8px,2vw,24px) !important; }
+.page-head h1 { font:700 clamp(40px,6vw,76px)/1 var(--serif); letter-spacing:-.03em; text-wrap:balance; }
+.page-head .lede { margin-bottom:0; }
+.page-head + section { padding-top:clamp(20px,3vw,36px); }
+.page-head .lede a { color:var(--blue); }
+
+/* Home: steps footnote, why cards, get band */
+.steps-band h2 { margin-bottom:clamp(20px,3vw,32px); }
+.steps-more { margin-top:clamp(20px,3vw,32px); color:var(--muted); max-width:72ch; }
+.steps-more b { color:var(--ink); }
+.why-grid { list-style:none; padding:0; margin:0; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px; }
+.why-grid li { border:2px solid var(--blue); border-radius:22px; padding:28px; background:var(--card); }
+.why-grid .spot { width:96px; height:96px; margin-bottom:18px; }
+.why-grid p { color:var(--muted); margin:10px 0 0; }
+.why-more { margin-top:28px; }
+.get-band { background:var(--paper-2); border-block:2px solid var(--blue); }
+.get-card { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:clamp(20px,4vw,48px); align-items:center; border:2px solid var(--blue); border-radius:24px; padding:clamp(24px,4vw,44px); background:var(--card); box-shadow:8px 8px 0 var(--pink); }
+.get-card h2 { font-size:clamp(28px,3.4vw,44px); margin-bottom:12px; }
+.get-actions .install-line { border-style:solid; border-color:var(--blue); font-size:14px; }
+
+/* Download: current version, and keeping it current */
+.version-line { margin:0 0 28px; padding:14px 18px; border:2px solid var(--blue); border-radius:14px; background:var(--card); color:var(--muted); }
+.version-line b { color:var(--ink); }
+.version-line a { color:var(--blue); font-weight:600; }
+.manage { background:var(--paper-2); border-block:2px solid var(--blue); }
+.manage-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; }
+.manage-grid > div { border:2px solid var(--blue); border-radius:22px; padding:26px; background:var(--card); }
+.manage-grid p { color:var(--muted); margin:10px 0 0; }
+
+/* Features: the controls table reads as a key map */
+.keys { min-width:560px; }
+.keys tbody th { width:38%; color:var(--ink); }
+.keys td b { color:var(--ink); }
+
+/* Versions: a timeline down the left edge */
+.timeline { list-style:none; margin:0; padding:0; position:relative; }
+.timeline::before { content:""; position:absolute; left:clamp(96px,14vw,168px); top:8px; bottom:8px; border-left:2px solid var(--blue); }
+.release { display:grid; grid-template-columns:clamp(96px,14vw,168px) minmax(0,1fr); gap:0 clamp(24px,4vw,48px); padding-bottom:clamp(28px,4vw,44px); position:relative; }
+.release::after { content:""; position:absolute; left:calc(clamp(96px,14vw,168px) - 8px); top:10px; width:14px; height:14px; border-radius:50%; background:var(--pink); border:2px solid var(--blue); }
+.release.upcoming::after { background:var(--pink-soft); border-style:dashed; }
+.release-meta { text-align:right; padding-right:clamp(10px,2vw,22px); }
+.release-version { margin:0; font:700 clamp(24px,3vw,34px)/1 var(--serif); color:var(--blue); }
+.release-meta time,.release-when { display:block; margin-top:6px; font-size:14px; color:var(--muted); }
+.release-tag { display:inline-block; margin-top:8px; padding:4px 10px; border-radius:999px; background:var(--blue); color:var(--blue-ink); font:700 11px/1.2 var(--sans); letter-spacing:.12em; text-transform:uppercase; }
+.release-tag.next { background:var(--pink-soft); color:var(--ink); }
+.release-body { border:2px solid var(--blue); border-radius:22px; padding:clamp(20px,3vw,30px); background:var(--card); }
+.release.upcoming .release-body { border-style:dashed; }
+.release-body h2 { font-size:clamp(22px,2.4vw,28px); margin:0 0 10px; max-width:none; }
+.release-body ul { margin:0; padding-left:20px; color:var(--muted); }
+.release-body li { margin-bottom:6px; }
+.release-links { margin:14px 0 0; display:flex; flex-wrap:wrap; gap:6px 18px; font-size:14px; color:var(--muted); }
+.release-links a { color:var(--blue); font-weight:600; }
+.release-sha code { font-size:12px; }
+
 /* Legal page */
 .doc-page main { max-width:760px; margin:0 auto; padding:clamp(48px,8vw,96px) var(--gutter); }
 .doc h1 { font:700 clamp(40px,6vw,64px)/1.02 var(--serif); letter-spacing:-.03em; color:var(--blue); }
@@ -223,11 +279,11 @@ pre { background:var(--paper); border:2px dashed var(--line); border-radius:12px
 .doc-date { font-size:13px; color:var(--muted); }
 
 /* Paper: one list of every surface that carries the texture. */
-body,.site-header,pre,.window,.steps-band,.steps li,kbd,.feature-grid li,.compare,.table-wrap,.download-card,.copy,.creator,.creator-card,.site-footer { background-image:var(--texture); background-size:400px; }
+body,.site-header,pre,.window,.steps-band,.steps li,kbd,.feature-grid li,.compare,.table-wrap,.download-card,.copy,.creator,.creator-card,.site-footer,.why-grid li,.get-band,.get-card,.version-line,.manage,.manage-grid > div,.release-body { background-image:var(--texture); background-size:400px; }
 .print,.spot,.lead-art { background-image:var(--print-texture); background-size:400px; }
 
 @media (max-width:900px) {
-  .hero-grid,.steps,.download-grid,.creator-card,.site-footer { grid-template-columns:minmax(0,1fr); }
+  .hero-grid,.steps,.download-grid,.creator-card,.site-footer,.why-grid,.get-card,.manage-grid { grid-template-columns:minmax(0,1fr); }
   .hero-art { max-width:520px; }
   .feature-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .feature-grid li,.feature-grid li:nth-child(2),.feature-grid li:nth-child(3) { grid-column:span 1; }
@@ -237,8 +293,20 @@ body,.site-header,pre,.window,.steps-band,.steps li,kbd,.feature-grid li,.compar
   .hero-art { justify-self:center; }
   .site-footer nav { justify-content:flex-start; }
 }
+/* Phones: the page links move to their own scrollable row under the brand, so every page
+   stays one tap away (hiding them would strand visitors on a multi-page site). */
 @media (max-width:760px) {
-  .site-header nav a:not(.nav-cta) { display:none; }
+  .site-header { row-gap:4px; }
+  .site-header nav { order:3; width:100%; flex-wrap:nowrap; overflow-x:auto; gap:18px; letter-spacing:.08em; scrollbar-width:none; }
+  .site-header nav::-webkit-scrollbar { display:none; }
+  .site-header nav a { flex:none; }
+  .site-header .nav-cta { margin-left:auto; }
+}
+@media (max-width:560px) {
+  .timeline::before { left:7px; }
+  .release { grid-template-columns:minmax(0,1fr); padding-left:30px; }
+  .release::after { left:0; }
+  .release-meta { text-align:left; padding:0 0 10px; }
 }
 @media (max-width:560px) {
   .feature-grid { grid-template-columns:minmax(0,1fr); }

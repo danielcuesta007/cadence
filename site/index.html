@@ -7,6 +7,7 @@
 <meta name="description" content="Your words. Your rhythm. Speak naturally and let Cadence type entirely on your Mac. Private, offline, bilingual dictation. Free and open source from DC Labs.">
 <meta name="color-scheme" content="light">
 <meta name="theme-color" content="#ffffff">
+<link rel="canonical" href="https://cadence-dictation.pages.dev/">
 <meta property="og:title" content="Keep your cadence.">
 <meta property="og:description" content="Your words. Your rhythm. Speak naturally and let Cadence type entirely on your Mac. Private, offline, bilingual dictation. Free and open source from DC Labs.">
 <meta property="og:url" content="https://cadence-dictation.pages.dev/">
@@ -24,16 +25,18 @@
 <body>
 <a class="skip" href="#main">Skip to content</a>
 
+<!-- site:header -->
 <header class="site-header">
-  <a class="brand" href="index.html" aria-label="Cadence home"><img src="art/mark.svg" alt="" width="40" height="40"><span>Cadence</span></a>
+  <a class="brand" href="index.html" aria-label="Cadence home" aria-current="page"><img src="art/mark.svg" alt="" width="40" height="40"><span>Cadence</span></a>
   <nav aria-label="Main navigation">
-    <a href="#try">Try it</a>
-    <a href="#features">Features</a>
-    <a href="#compare">Compare</a>
-    <a href="#creator">Creator</a>
-    <a class="nav-cta" href="#download">Download</a>
+    <a href="features.html">Features</a>
+    <a href="versions.html">Versions</a>
+    <a href="help.html">Help</a>
+    <a href="about.html">About</a>
+    <a class="nav-cta" href="download.html">Download</a>
   </nav>
 </header>
+<!-- /site:header -->
 
 <main id="main" tabindex="-1">
 
@@ -44,8 +47,8 @@
   <h1 id="hero-title">Keep your cadence.<br><span class="circled">Your words. Your rhythm.<svg class="scribble" viewBox="0 0 1200 600" preserveAspectRatio="none" aria-hidden="true" focusable="false"><path vector-effect="non-scaling-stroke" d="M 950 90 C 1250 300, 1050 480, 600 520 C 250 520, 150 480, 150 300 C 150 120, 350 80, 600 80 C 850 80, 950 180, 950 180"/></svg></span></h1>
   <p class="lede">Speak naturally. Cadence turns your voice into text wherever you’re typing. Hold a key, speak, release. <strong>Nothing leaves your Mac.</strong> Works offline, in two languages, for free.</p>
   <div class="hero-actions">
-    <a class="button" href="#download">Download for Mac</a>
-    <a class="button ghost" href="#compare">See how it compares</a>
+    <a class="button" href="download.html">Download for Mac</a>
+    <a class="button ghost" href="features.html">See what it does</a>
   </div>
   </div>
   <figure class="hero-art print"><img src="art/announcer.svg" alt="An illustrated announcer speaks into a vintage microphone, and the words leave it as a line of type" width="540" height="480"></figure>
@@ -73,127 +76,55 @@
 </section>
 
 <section class="steps-band" aria-labelledby="steps-title">
-  <h2 id="steps-title" class="visually-hidden">How it works</h2>
+  <p class="kicker">How it works</p>
+  <h2 id="steps-title">Hold, speak, release.</h2>
   <ol class="steps">
     <li><img class="spot" src="art/hold.svg" alt="" width="120" height="120"><h3>Hold</h3><p>Hold <kbd>Right&nbsp;⌥</kbd> in any app. A small pill appears while you speak.</p></li>
     <li><img class="spot" src="art/speak.svg" alt="" width="120" height="120"><h3>Speak</h3><p>A quick draft shows as you talk. A second, more careful pass makes the final text.</p></li>
     <li><img class="spot" src="art/release.svg" alt="" width="120" height="120"><h3>Release</h3><p>Let go and the text lands where your cursor is. <kbd>Ctrl</kbd><kbd>⌥</kbd><kbd>⌘</kbd><kbd>Z</kbd> takes it back.</p></li>
   </ol>
+  <p class="steps-more">Talking for a while? Tap <kbd>Right&nbsp;⌥</kbd> twice, or tap it once and then hold, to go <b>hands-free</b>. Let go and keep talking; one tap finishes. <a href="features.html#controls">All the controls</a></p>
 </section>
 
-<section class="features" id="features" aria-labelledby="features-title">
-  <p class="kicker">Features</p>
-  <h2 id="features-title">Everything you need, nothing that phones home.</h2>
-  <ul class="feature-grid">
-    <li class="feature-lead"><img class="lead-art" src="art/jar.svg" alt="" width="200" height="200"><div><h3>On your Mac, start to finish</h3><p>Speech becomes text on your Mac's own chip, using OpenAI's open Whisper model. No server, no account, and no networking code at all. Turn off Wi-Fi and it still works.</p></div></li>
-    <li class="feature-art"><img class="spot" src="art/bubbles.svg" alt="" width="96" height="96"><h3>Two languages, two keys</h3><p>Right Option for one language, Left Option for the other. Switching costs a finger, not a menu, and no time spent guessing the language.</p></li>
-    <li><h3>Your words, spelled right</h3><p>A personal dictionary teaches it the names and terms you use most.</p></li>
-    <li><h3>History, encrypted</h3><p>Past dictations are kept in an encrypted database on your Mac, searchable, with copy and re-insert. Saving audio is off unless you turn it on.</p></li>
-    <li><h3>See the time you save</h3><p>A dashboard with time saved, words, speaking pace, your streak and where you dictate most.</p></li>
-    <li><h3>Honest about every insert</h3><p>Cadence checks that your text actually landed and never claims success when it didn't.</p></li>
+<section class="why" aria-labelledby="why-title">
+  <p class="kicker">Why Cadence</p>
+  <h2 id="why-title">Private, fast and free.</h2>
+  <ul class="why-grid">
+    <li><img class="spot" src="art/jar.svg" alt="" width="96" height="96"><h3>Stays on your Mac</h3><p>Speech becomes text on your Mac's own chip. No server, no account, no networking code. It works with Wi-Fi off.</p></li>
+    <li><img class="spot" src="art/bubbles.svg" alt="" width="96" height="96"><h3>Two languages, two keys</h3><p>Right Option for one language, Left Option for the other. Switching costs a finger, not a menu.</p></li>
+    <li><img class="spot" src="art/release.svg" alt="" width="96" height="96"><h3>Free and open source</h3><p>No trial, no word limit, no subscription. MIT licensed, with every line on GitHub.</p></li>
   </ul>
+  <p class="why-more"><a class="button ghost" href="features.html">Every feature, and how it compares</a></p>
 </section>
 
-<section class="compare" id="compare" aria-labelledby="compare-title">
-  <p class="kicker">Compare</p>
-  <h2 id="compare-title">How Cadence compares</h2>
-  <p class="section-lede">The facts that matter most, as of October 2026, from each product's own site. Prices change, so check the linked pages.</p>
-  <div class="table-wrap" tabindex="0" role="region" aria-labelledby="compare-title">
-    <table>
-      <thead><tr><th scope="col"><span class="visually-hidden">Feature</span></th><th scope="col" class="us">Cadence</th><th scope="col">Wispr Flow</th><th scope="col">Superwhisper</th><th scope="col">Apple Dictation</th></tr></thead>
-      <tbody>
-        <tr><th scope="row">Where your speech becomes text</th><td class="us">On your Mac, always</td><td>In the cloud, always</td><td>On your Mac or in the cloud, by model</td><td>On your Mac for many languages</td></tr>
-        <tr><th scope="row">Works offline</th><td class="us">Yes</td><td>No</td><td>Yes, with local models</td><td>Yes, for many languages</td></tr>
-        <tr><th scope="row">Price</th><td class="us">Free</td><td>Free up to 2,000 words a week, then $12–15 a month</td><td>Free tier; Pro is paid</td><td>Free, built in</td></tr>
-        <tr><th scope="row">Open source</th><td class="us">Yes, MIT</td><td>No</td><td>No</td><td>No</td></tr>
-        <tr><th scope="row">Platforms</th><td class="us">Mac (Apple silicon)</td><td>Mac, Windows, iOS, Android</td><td>Mac, Windows, iOS, Android</td><td>Apple devices</td></tr>
-      </tbody>
-    </table>
-  </div>
-  <p class="caption">Where they win: Wispr Flow and Superwhisper run on far more devices and offer AI editing and cloud features that Cadence doesn't have. Apple Dictation needs nothing installed. Choose Cadence if you want your voice to stay on your Mac. Sources: <a href="https://wisprflow.ai/pricing" rel="noopener">Wispr Flow pricing</a> and <a href="https://wisprflow.ai/privacy" rel="noopener">privacy</a>, <a href="https://superwhisper.com" rel="noopener">Superwhisper</a>, <a href="https://support.apple.com/guide/mac-help/use-dictation-mh40584/mac" rel="noopener">Apple Dictation</a>.</p>
-</section>
-
-<section class="download" id="download" aria-labelledby="download-title">
-  <p class="kicker">Download</p>
-  <h2 id="download-title">Get Cadence</h2>
-  <div class="download-grid">
-    <div class="download-card">
-      <img src="icon-512.png" alt="The Cadence app icon" width="120" height="120">
-      <h3 class="install-title">Install with one line</h3>
-      <p class="small">Open <b>Terminal</b> (press ⌘ Space, type Terminal, press Return), paste this and press Return:</p>
+<section class="get-band" aria-labelledby="get-title">
+  <div class="get-card">
+    <div>
+      <p class="kicker">Get Cadence</p>
+      <h2 id="get-title">One line in Terminal. No warnings, no password.</h2>
+      <p class="small">Apple silicon Mac · macOS 14 Sonoma or later · free</p>
+    </div>
+    <div class="get-actions">
       <pre class="install-line"><code>curl -fsSL https://cadence-dictation.pages.dev/install.sh | sh</code></pre>
       <button type="button" class="copy" data-copy="curl -fsSL https://cadence-dictation.pages.dev/install.sh | sh">Copy</button>
-      <p class="small">It downloads Cadence, checks it's the genuine file, puts it in Applications and opens it. No security warning, no admin password. Run the same line again to update. <a href="install.sh">Read the script first</a>, it's short.</p>
-      <p class="small">Apple silicon Mac · macOS 14 Sonoma or later · about 500 MB, because the speech model comes with it</p>
-      <p class="or"><span>or</span></p>
-      <a class="button ghost" href="https://github.com/danieljcuesta007/cadence/releases/latest/download/Cadence.dmg">Download Cadence.dmg</a>
-      <p class="small">Or with Homebrew. No admin password and no security warning either; it installs into your own Applications folder:</p>
-      <pre><code>brew tap danieljcuesta007/cadence https://github.com/danieljcuesta007/cadence
-brew install --cask --appdir=~/Applications cadence</code></pre>
-      <button type="button" class="copy" data-copy="brew tap danieljcuesta007/cadence https://github.com/danieljcuesta007/cadence &amp;&amp; brew install --cask --appdir=~/Applications cadence">Copy</button>
-    </div>
-    <div class="first-open">
-      <h3 id="why-warning">Used the .dmg? Why macOS asks you to confirm</h3>
-      <p>The one-line install and Homebrew skip all of this: each checks the file against its published checksum, then clears the flag macOS puts on downloaded apps. If you downloaded the .dmg in a browser instead, read on. (Dragging into Applications may ask for an administrator's password; without one, drag Cadence into the Applications folder inside your home folder.)</p>
-      <p>Apple only skips that warning for apps from developers who pay $99 a year for its Developer Program. Cadence is free, and staying free meant not passing that cost on to you. So it isn't notarized by Apple, and macOS will ask you to confirm once, the first time you open it. That was a deliberate choice, not an oversight.</p>
-      <h3>Open it the first time</h3>
-      <ol>
-        <li>Drag Cadence onto <b>Applications</b>, then eject the Cadence disk. Open Cadence from Applications, not from the disk image.</li>
-        <li>macOS says it can't check or verify the app. Click <b>Done</b> (or <b>OK</b>). Nothing is wrong with the file; this is the one-time notice for apps Apple hasn't notarized.</li>
-        <li>Open <b>System Settings › Privacy &amp; Security</b> and scroll down to <b>Security</b>. Next to "Cadence was blocked", click <b>Open Anyway</b>, then confirm with your password or Touch ID.</li>
-      </ol>
-      <p>On macOS 14 Sonoma there's a shortcut: Control-click Cadence in Applications, choose <b>Open</b>, then click <b>Open</b> again.</p>
-      <p>After that it opens normally. Cadence then asks for two permissions: <b>Microphone</b> to hear you and <b>Accessibility</b> to type into other apps.</p>
-      <h3 id="no-open-anyway">No Open Anyway button?</h3>
-      <p>It only shows for about an hour after macOS blocks the app, so open Cadence once more and look again. If it still isn't there, paste this into Terminal, press Return, then open Cadence normally:</p>
-      <pre><code>xattr -dr com.apple.quarantine /Applications/Cadence.app</code></pre>
-      <button type="button" class="copy" data-copy="xattr -dr com.apple.quarantine /Applications/Cadence.app">Copy</button>
-      <p>If Cadence is in the Applications folder inside your home folder, use <code>~/Applications/Cadence.app</code> instead. That removes the "downloaded from the internet" flag macOS puts on the app, and changes nothing else. Only run it on a download whose checksum matches the one below.</p>
-      <p>Cadence needs an Apple silicon Mac (M1 or newer) on macOS 14 Sonoma or later. On an older Mac it won't open, even after these steps.</p>
-      <h3>Want a desktop widget?</h3>
-      <p>It comes with the app. Open the Cadence menu in your Mac’s menu bar and turn on <b>Show Desktop Widget</b> to see today’s and this week’s words, streak, pace, time saved and all-time words. Click the widget’s logo to open Cadence. Drag it to place it; hide it anytime from the same menu or its close button. It stays on your desktop while Cadence is running, and remembers your choice next time.</p>
-      <h3>Check it's the real file</h3>
-      <p>Every release publishes its SHA-256 checksum. In Terminal, run <code>shasum -a 256 ~/Downloads/Cadence.dmg</code> and compare the result with:</p>
-      <pre><code data-sha>63e315ea93b98916ac648cd7b1d70ad8cfe885bdf94ba031f3dea38cf57c31c1</code></pre>
-      <p>You can also read every line of the source on <a href="https://github.com/danieljcuesta007/cadence" rel="noopener">GitHub</a>, or build it yourself from there.</p>
+      <p class="small"><a href="download.html">Homebrew, the .dmg, and what that line does</a></p>
     </div>
   </div>
-</section>
-
-<section class="creator" id="creator" aria-labelledby="creator-title">
-  <div class="creator-card">
-    <div class="monogram" aria-hidden="true">DC</div>
-    <div>
-      <p class="kicker">About the creator</p>
-      <h2 id="creator-title">Built by DC Labs, a Daniel J. Cuesta company.</h2>
-      <p>Daniel is a student founder who runs a lot at once: Addisuna Coffee, a coffee company where every bag funds a student's learning in Ethiopia, and Wednesdays of Wisdom, a weekly letter. He talks faster than he types, in English and Spanish, and wanted dictation that kept his words on his own machine. So he built it. DC Labs is the studio behind the tools he makes.</p>
-      <ul class="creator-links">
-        <li><a href="https://danielcuesta007.com" rel="noopener">danielcuesta007.com</a></li>
-        <li><a href="https://addisuna.com" rel="noopener">Addisuna Coffee</a></li>
-        <li><a href="https://skeptic.pages.dev" rel="noopener">Also from DC Labs: Skeptic</a></li>
-      </ul>
-    </div>
-  </div>
-</section>
-
-<section class="faq" id="faq" aria-labelledby="faq-title">
-  <p class="kicker">Questions</p>
-  <h2 id="faq-title">Fair questions</h2>
-  <details><summary>Is it really free?</summary><p>Yes. Cadence is open source under the MIT license, with no account, trial or word limit.</p></details>
-  <details><summary>Does anything I say leave my Mac?</summary><p>No. Transcription runs on your Mac, and Cadence has no networking code. History is encrypted on your disk, and audio is only kept if you turn that on.</p></details>
-  <details><summary>Which languages?</summary><p>Any language the bundled Whisper model handles, two at a time: one per Option key, or set either key to detect the language automatically. English and Spanish are tested the most.</p></details>
-  <details><summary>Is the Terminal line safe?</summary><p>It runs <a href="install.sh">a short script</a> you can read first. It only downloads the release from GitHub, stops if the file doesn't match the published checksum, and copies Cadence.app into Applications. No admin password, and it never touches your history in ~/.cadence.</p></details>
-  <details><summary>Why does macOS warn me when I first open it?</summary><p>It isn't notarized, because that costs $99 a year and Cadence is free. The one-line install avoids the warning entirely. If you used the .dmg, <a href="#why-warning">here's how to open it</a> on any macOS version, and how to check the file is genuine.</p></details>
-  <details><summary>Intel Mac? Windows? iPhone?</summary><p>Not yet. Cadence is built for Apple silicon Macs only, so it won't open on an Intel Mac. Windows is planned.</p></details>
-  <details><summary>Is it affiliated with Wispr Flow, Superwhisper, Apple or OpenAI?</summary><p>No. They're named only to compare and to credit. Cadence is an independent project.</p></details>
 </section>
 
 <p class="visually-hidden" role="status" data-copy-status></p>
 </main>
 
+<!-- site:footer -->
 <footer class="site-footer">
   <div class="footer-brand"><img src="art/mark.svg" alt="" width="40" height="40"><p><strong>Cadence</strong><br><span class="footer-tagline">Your words. Your rhythm.</span><br>Built by DC Labs, a Daniel J. Cuesta company.</p></div>
   <nav aria-label="Footer">
+    <a href="index.html">Home</a>
+    <a href="features.html">Features</a>
+    <a href="download.html">Download</a>
+    <a href="versions.html">Versions</a>
+    <a href="help.html">Help</a>
+    <a href="about.html">About</a>
     <a href="legal.html#privacy">Privacy</a>
     <a href="legal.html#license">License</a>
     <a href="legal.html#credits">Credits</a>
@@ -201,5 +132,6 @@ brew install --cask --appdir=~/Applications cadence</code></pre>
   </nav>
   <p class="fineprint">© 2026 Daniel Cuesta. MIT licensed. Speech recognition by Whisper (OpenAI) via whisper.cpp, both MIT. Wispr Flow, Superwhisper, Apple and macOS belong to their owners. Cadence is not affiliated with or endorsed by them.</p>
 </footer>
+<!-- /site:footer -->
 </body>
 </html>
