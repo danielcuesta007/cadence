@@ -2,6 +2,17 @@
   "_about": "The one list of Cadence versions, newest first. qa/package-app.sh reads the app version and build from the first entry; qa/make-dmg.sh refuses any other version and stamps that entry's date and sha256; the site renders its version timeline and download details from this file (site/releases.mjs). Add a new entry at the top to start a release.",
   "releases": [
     {
+      "version": "0.1.7",
+      "build": 13,
+      "date": null,
+      "sha256": null,
+      "title": "Background-noise captions removed more carefully",
+      "highlights": [
+        "When Cadence removes a background-noise caption such as [Music], it no longer changes the spacing or line breaks in the rest of your text.",
+        "A number that starts with a decimal point, like .5, keeps its point when a caption comes right before it."
+      ]
+    },
+    {
       "version": "0.1.6",
       "build": 12,
       "date": "2026-11-02",

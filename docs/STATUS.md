@@ -239,6 +239,10 @@ Model: ~/cadence/models/artifacts/ggml-small.bin (pin 1be3a9b2…; pass CADENCE_
 Other worktrees (capture-latency, dictation-controls, readiness, ~/cadence) hold uncommitted
 research: do not reset or stash them.
 
+**0.1.7 (13) — caption-filter fix release (Daniel: "push go fix merge", 2 Nov 2026).**
+#97 fixed issue #95: removing a noise caption only tidies its own gap, and "[Music] .5 mg"
+no longer becomes "5 mg" (a 10x dose bug that shipped in 0.1.6). See "How releases work now".
+
 **0.1.6 (12) is RELEASED (2 Nov 2026, Daniel approved).** Tag v0.1.6 at 9253558; release
 https://github.com/danielcuesta007/cadence/releases/tag/v0.1.6, Cadence.dmg sha256
 `7e1933c358aa05451e77b2749e5bb96cc34d8ddd0aa4232c83580ff5546d16d3` (the downloaded asset
