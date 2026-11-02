@@ -4,8 +4,8 @@
     {
       "version": "0.1.7",
       "build": 13,
-      "date": null,
-      "sha256": null,
+      "date": "2026-11-02",
+      "sha256": "aefc1c01e1dac4c46b657b211514859cc0c25d67ff3bbdc3b03e67d957d1cf98",
       "title": "Background-noise captions removed more carefully",
       "highlights": [
         "When Cadence removes a background-noise caption such as [Music], it no longer changes the spacing or line breaks in the rest of your text.",
