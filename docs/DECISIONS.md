@@ -99,3 +99,9 @@ Format: date · decision · why · reversibility. Larger decisions get an ADR in
     never paywalled. Repo stays public through TreeHacks 2027; READINESS gates (name, ND IP,
     LLC, merchant of record) clear before any sale. Already-published versions stay MIT
     regardless. See ADR-0008. Reversible until something is sold.
+
+25. **Extension points: trait + empty registry, not wired yet** (Step 18, 2026-11-02) — new
+    std-only crate `core/extensions` with `Extension` (no-op default hooks) and `Registry`
+    (empty = the free build). Tests prove a full dictation runs with zero extensions and that
+    no workspace crate depends on anything outside the repo. No licence or payment code. See
+    ADR-0009 (follows ADR-0008 checkpoint 4).
