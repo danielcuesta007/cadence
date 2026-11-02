@@ -44,18 +44,19 @@ public struct PTTTiming: Equatable {
         self.interTapGap = interTapGap
     }
 
-    /// The macOS default double-click speed is 0.5 s.
-    public static let standard = PTTTiming(maxTapDuration: 0.35, interTapGap: 0.5)
-    /// Never stricter than 0.4 s (the old 0.3 s window was the complaint) and never so long
-    /// that a lone short tap waits noticeably before it stops.
-    public static let gapRange: ClosedRange<TimeInterval> = 0.4...0.8
+    /// Daniel asked twice for more forgiveness (1 Nov 2026), so the pause allowed between
+    /// taps is the macOS double-click speed plus `extraGap`: 0.7 s at the 0.5 s default.
+    public static let standard = PTTTiming(maxTapDuration: 0.45, interTapGap: 0.7)
+    public static let extraGap: TimeInterval = 0.2
+    /// Never stricter than 0.6 s, and capped at 1 s so a lone short tap still stops promptly.
+    public static let gapRange: ClosedRange<TimeInterval> = 0.6...1.0
 
     /// Follows the user's own double-click speed (System Settings › Accessibility › Pointer
-    /// Control), so someone who has already told macOS they click slowly gets the same
-    /// allowance here. Clamped to `gapRange`; a missing or invalid reading means `standard`.
+    /// Control) with `extraGap` on top, so someone who has told macOS they click slowly gets
+    /// more here too. Clamped to `gapRange`; a missing or invalid reading means `standard`.
     public static func following(doubleClickInterval: TimeInterval) -> PTTTiming {
         guard doubleClickInterval.isFinite, doubleClickInterval > 0 else { return .standard }
-        let gap = min(max(doubleClickInterval, gapRange.lowerBound), gapRange.upperBound)
+        let gap = min(max(doubleClickInterval + extraGap, gapRange.lowerBound), gapRange.upperBound)
         return PTTTiming(maxTapDuration: standard.maxTapDuration, interTapGap: gap)
     }
 }
@@ -139,7 +140,10 @@ public struct PTTArbiter {
             reset()
             return .stop(key)
         }
-        if secondTap && quick {
+        // Tap-then-hold also latches: the second press may be any length (a hesitant user
+        // often presses and keeps holding). Only the FIRST press must be a tap, so a plain
+        // hold is still push-to-talk and stops on release.
+        if secondTap {
             secondTap = false
             latched = true
             return .ignore

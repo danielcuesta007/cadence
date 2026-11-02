@@ -219,7 +219,8 @@ func runHotkeySelftest() -> Int32 {
         }
         _ = edge(true, 0); _ = edge(false, 0.05)
         _ = edge(true, 0.15)
-        check("second_long_hold_does_not_latch", edge(false, 2) == .stop(.primary) && !a.latched)
+        check("tap_then_hold_latches", edge(false, 2) == .ignore && a.latched)
+        check("tap_then_hold_one_tap_finishes", edge(true, 2.5) == .ignore && edge(false, 2.55) == .stop(.primary))
         _ = edge(true, 3); _ = edge(false, 3.05)
         _ = edge(true, 3.15); _ = edge(false, 3.2)
         _ = edge(true, 4)
@@ -233,16 +234,19 @@ func runHotkeySelftest() -> Int32 {
     // only the pause is generous. Boundaries are tested on both sides with an explicit timing
     // so the checks never depend on this Mac's double-click setting.
     do {
-        let t = PTTTiming(maxTapDuration: 0.35, interTapGap: 0.5)
-        check("timing_standard_gap_forgiving", PTTTiming.standard.interTapGap >= 0.5
+        let t = PTTTiming(maxTapDuration: 0.45, interTapGap: 0.7)
+        check("timing_standard_forgiving", PTTTiming.standard.interTapGap >= 0.7
+              && PTTTiming.standard.maxTapDuration >= 0.45
               && PTTTiming.standard.maxTapDuration < PTTTiming.standard.interTapGap)
-        check("timing_follows_double_click", PTTTiming.following(doubleClickInterval: 0.7).interTapGap == 0.7)
-        check("timing_clamps_fast_setting", PTTTiming.following(doubleClickInterval: 0.1).interTapGap == 0.4)
-        check("timing_clamps_slow_setting", PTTTiming.following(doubleClickInterval: 5).interTapGap == 0.8)
+        check("timing_default_click_speed_is_standard",
+              abs(PTTTiming.following(doubleClickInterval: 0.5).interTapGap - 0.7) < 1e-9)
+        check("timing_follows_slow_click", abs(PTTTiming.following(doubleClickInterval: 0.75).interTapGap - 0.95) < 1e-9)
+        check("timing_clamps_fast_setting", PTTTiming.following(doubleClickInterval: 0.1).interTapGap == 0.6)
+        check("timing_clamps_slow_setting", PTTTiming.following(doubleClickInterval: 5).interTapGap == 1.0)
         check("timing_invalid_is_standard", PTTTiming.following(doubleClickInterval: .nan) == .standard
               && PTTTiming.following(doubleClickInterval: 0) == .standard)
         check("timing_tap_length_not_stretched",
-              PTTTiming.following(doubleClickInterval: 0.8).maxTapDuration == PTTTiming.standard.maxTapDuration)
+              PTTTiming.following(doubleClickInterval: 0.9).maxTapDuration == PTTTiming.standard.maxTapDuration)
 
         func run(_ steps: [(Bool, Double)], key: PTTKey = .primary) -> (PTTArbiter, [PTTArbiter.Decision]) {
             var a = PTTArbiter(timing: t)
@@ -256,34 +260,44 @@ func runHotkeySelftest() -> Int32 {
             return (a, out)
         }
 
-        // A hesitant user: 0.45 s between taps used to stop the dictation (0.3 s window).
-        var (a, out) = run([(true, 0), (false, 0.1), (true, 0.55), (false, 0.65)])
+        // A hesitant user: 0.65 s between taps (the original 0.3 s window stopped at 0.3).
+        var (a, out) = run([(true, 0), (false, 0.1), (true, 0.75), (false, 0.85)])
         check("hesitant_double_tap_latches", a.latched && out == [.start(.primary), .ignore, .ignore, .ignore])
-        check("hesitant_latch_one_start", out.filter { if case .start = $0 { return true }; return false }.count == 1)
+        check("hesitant_latch_one_start", out.filter { $0 == .start(.primary) }.count == 1)
         check("pending_cleared_once_latched", !a.awaitingSecondTap)
 
-        (a, out) = run([(true, 0), (false, 0.1), (true, 0.599), (false, 0.7)])
+        (a, out) = run([(true, 0), (false, 0.1), (true, 0.799), (false, 0.9)])
         check("gap_just_inside_latches", a.latched)
-        (a, out) = run([(true, 0), (false, 0.1), (true, 0.6), (false, 0.7)])
+        (a, out) = run([(true, 0), (false, 0.1), (true, 0.8), (false, 0.9)])
         check("gap_at_boundary_stops_first_tap", !a.latched && out.contains(.stop(.primary)))
         check("gap_at_boundary_starts_fresh", out.filter { $0 == .start(.primary) }.count == 2)
-        (a, out) = run([(true, 0), (false, 0.1), (true, 0.65), (false, 0.75)])
+        (a, out) = run([(true, 0), (false, 0.1), (true, 0.85), (false, 0.95)])
         check("gap_just_outside_does_not_latch", !a.latched && out[2] == .stop(.primary))
 
-        (a, out) = run([(true, 0), (false, 0.35), (true, 0.5), (false, 0.6)])
+        (a, out) = run([(true, 0), (false, 0.45), (true, 0.6), (false, 0.7)])
         check("tap_length_at_limit_counts", a.latched)
-        (a, out) = run([(true, 0), (false, 0.36)])
+        (a, out) = run([(true, 0), (false, 0.46)])
         check("tap_length_over_limit_is_hold", out.last == .stop(.primary) && a.deadline == nil)
-        (a, out) = run([(true, 0), (false, 0.1), (true, 0.3), (false, 0.71)])
-        check("long_second_press_is_hold_not_latch", !a.latched && out.last == .stop(.primary))
+        (a, out) = run([(true, 0), (false, 0.5), (true, 0.6), (false, 0.7)])
+        check("long_first_press_never_latches", !a.latched)
+
+        // Tap, then press-and-hold: latches on release; one tap still finishes.
+        (a, out) = run([(true, 0), (false, 0.1), (true, 0.5), (false, 4)])
+        check("tap_then_long_hold_latches", a.latched && out.last == .ignore)
+        check("tap_then_long_hold_one_start", out.filter { $0 == .start(.primary) }.count == 1)
+        (a, out) = run([(true, 0), (false, 0.1), (true, 0.5), (false, 4), (true, 9), (false, 9.1)])
+        check("tap_then_long_hold_tap_finishes", out.last == .stop(.primary) && a.held == nil)
+        // A long FINISH press still finishes (any clean owner release ends hands-free).
+        (a, out) = run([(true, 0), (false, 0.1), (true, 0.5), (false, 0.6), (true, 9), (false, 11)])
+        check("long_finish_press_finishes", out.last == .stop(.primary) && !a.latched)
 
         var b = PTTArbiter(timing: t)
         _ = b.resolve(key: .primary, down: true, otherModifiers: false, now: 0, handsFree: true)
         check("hold_not_pending", !b.awaitingSecondTap)
         _ = b.resolve(key: .primary, down: false, otherModifiers: false, now: 0.1, handsFree: true)
         check("first_tap_pending", b.awaitingSecondTap)
-        check("pending_still_open_before_gap", b.expire(now: 0.59) == .ignore && b.awaitingSecondTap)
-        check("lone_tap_stops_after_gap", b.expire(now: 0.6) == .stop(.primary) && !b.awaitingSecondTap)
+        check("pending_still_open_before_gap", b.expire(now: 0.79) == .ignore && b.awaitingSecondTap)
+        check("lone_tap_stops_after_gap", b.expire(now: 0.8) == .stop(.primary) && !b.awaitingSecondTap)
         check("lone_tap_stops_once", b.expire(now: 1) == .ignore)
         var h = PTTArbiter(timing: t)
         _ = h.resolve(key: .primary, down: true, otherModifiers: false, now: 0, handsFree: true)
@@ -295,13 +309,12 @@ func runHotkeySelftest() -> Int32 {
 
         // Hesitant latch, then a single clean tap finishes exactly once (no Return pressed:
         // the arbiter only ever emits start/stop/cancel, insertion never submits).
-        (a, out) = run([(true, 0), (false, 0.1), (true, 0.55), (false, 0.65), (true, 30), (false, 30.1)])
+        (a, out) = run([(true, 0), (false, 0.1), (true, 0.75), (false, 0.85), (true, 30), (false, 30.1)])
         check("hesitant_latch_single_tap_finishes", out.last == .stop(.primary) && a.held == nil)
         check("hesitant_finish_no_duplicate",
               out.filter { $0 == .stop(.primary) }.count == 1 && a.expire(now: 40) == .ignore)
 
-        // The other Option key during the longer pause can neither latch nor steal the
-        // dictation, and the owner can still complete its double-tap.
+        // The other Option key during the pause can neither latch nor steal the dictation.
         var c = PTTArbiter(timing: t)
         _ = c.resolve(key: .primary, down: true, otherModifiers: false, now: 0, handsFree: true)
         _ = c.resolve(key: .primary, down: false, otherModifiers: false, now: 0.1, handsFree: true)
@@ -309,33 +322,40 @@ func runHotkeySelftest() -> Int32 {
               now: 0.4, handsFree: true) == .ignore && c.held == .primary)
         check("foreign_release_in_gap_ignored", c.resolve(key: .secondary, down: false, otherModifiers: false,
               now: 0.45, handsFree: true) == .ignore && c.held == .primary)
-        _ = c.resolve(key: .primary, down: true, otherModifiers: false, now: 0.5, handsFree: true)
-        _ = c.resolve(key: .primary, down: false, otherModifiers: false, now: 0.55, handsFree: true)
+        _ = c.resolve(key: .primary, down: true, otherModifiers: false, now: 0.6, handsFree: true)
+        _ = c.resolve(key: .primary, down: false, otherModifiers: false, now: 0.65, handsFree: true)
         check("owner_latches_after_foreign_key", c.latched && c.held == .primary)
 
-        // An Option shortcut on the second press (⌥e, ⌃⌥⌘Z) during the pause retracts the
-        // whole thing rather than latching; a modifier already down cannot start or latch.
+        // Option typing/shortcuts on the second press retract instead of latching, even now
+        // that a long second press may latch: ⌥e while holding is typing, not speech.
         var d = PTTArbiter(timing: t)
         _ = d.resolve(key: .primary, down: true, otherModifiers: false, now: 0, handsFree: true)
         _ = d.resolve(key: .primary, down: false, otherModifiers: false, now: 0.1, handsFree: true)
         _ = d.resolve(key: .primary, down: true, otherModifiers: false, now: 0.5, handsFree: true)
         check("typing_on_second_press_retracts", d.retract() == .cancel(.primary) && d.held == nil)
         check("retracted_release_is_noop", d.resolve(key: .primary, down: false, otherModifiers: false,
-              now: 0.55, handsFree: true) == .ignore && !d.latched)
+              now: 2, handsFree: true) == .ignore && !d.latched)
         var e = PTTArbiter(timing: t)
         _ = e.resolve(key: .primary, down: true, otherModifiers: false, now: 0, handsFree: true)
         _ = e.resolve(key: .primary, down: false, otherModifiers: false, now: 0.1, handsFree: true)
         check("chorded_second_press_cannot_latch", e.resolve(key: .primary, down: true, otherModifiers: true,
               now: 0.4, handsFree: true) == .ignore && !e.latched)
-        check("chorded_second_press_leaves_first_tap", e.expire(now: 0.6) == .stop(.primary))
+        check("chorded_second_press_leaves_first_tap", e.expire(now: 0.8) == .stop(.primary))
 
-        // Escape (monitor resets the gesture) during the pause leaves nothing pending/stranded.
+        // Escape (monitor resets the gesture) during the pause or a held second press.
         var f = PTTArbiter(timing: t)
         _ = f.resolve(key: .primary, down: true, otherModifiers: false, now: 0, handsFree: true)
         _ = f.resolve(key: .primary, down: false, otherModifiers: false, now: 0.1, handsFree: true)
         f.reset()
         check("escape_in_gap_clears_pending", !f.awaitingSecondTap && f.held == nil
               && f.expire(now: 1) == .ignore)
+        var g2 = PTTArbiter(timing: t)
+        _ = g2.resolve(key: .primary, down: true, otherModifiers: false, now: 0, handsFree: true)
+        _ = g2.resolve(key: .primary, down: false, otherModifiers: false, now: 0.1, handsFree: true)
+        _ = g2.resolve(key: .primary, down: true, otherModifiers: false, now: 0.5, handsFree: true)
+        g2.reset()
+        check("escape_during_second_hold_strands_nothing", g2.resolve(key: .primary, down: false,
+              otherModifiers: false, now: 3, handsFree: true) == .ignore && !g2.latched && g2.held == nil)
 
         // Hold-to-talk is untouched: immediate start, immediate stop, never pending.
         (a, out) = run([(true, 0), (false, 3)])
@@ -344,6 +364,11 @@ func runHotkeySelftest() -> Int32 {
         check("hands_free_off_hold_unchanged",
               g.resolve(key: .primary, down: true, otherModifiers: false, now: 0) == .start(.primary)
               && g.resolve(key: .primary, down: false, otherModifiers: false, now: 0.1) == .stop(.primary))
+        var g3 = PTTArbiter(timing: t)
+        _ = g3.resolve(key: .primary, down: true, otherModifiers: false, now: 0)
+        _ = g3.resolve(key: .primary, down: false, otherModifiers: false, now: 0.1)
+        check("hands_free_off_never_latches", g3.resolve(key: .primary, down: true, otherModifiers: false,
+              now: 0.3) == .start(.primary) && !g3.latched)
 
         check("pill_pending_hint", OverlayHUD.listeningGlyph(handsFree: false, tapPending: true)
               .contains("tap again"))
