@@ -1,0 +1,16 @@
+[package]
+name = "cadence-extensions"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Extension points for optional add-ons. The free core runs with none (ADR-0009)."
+
+# No dependencies on purpose: the trait is std-only so any add-on can implement it without
+# pulling the engine in, and the free core never depends on an add-on (ADR-0008, ADR-0009).
+[dependencies]
+
+[dev-dependencies]
+cadence-asr = { path = "../asr" }
+cadence-cleanup = { path = "../cleanup" }
+cadence-ipc = { path = "../ipc" }
+cadence-orchestrator = { path = "../orchestrator" }
