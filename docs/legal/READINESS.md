@@ -32,6 +32,10 @@ Center (free) or a startup lawyer before charging money.
 3. **Getting paid** (only if selling): merchant of record (Lemon Squeezy / Paddle) for
    sales tax; an LLC to separate it from you. If you charge, notarizing ($99/yr) becomes
    worth it, and the "why it isn't notarized" copy changes.
+4. **Business model chosen (2 Nov 2026): open core plus a paid convenience build.** See
+   `docs/adr/0008-open-core-and-paid-convenience.md` for what stays free, what can be paid,
+   and the order of work. Before the first outside pull request, add a contributor
+   agreement so paid builds can include outside work.
 
 ## Release checklist
 
