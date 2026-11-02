@@ -10,6 +10,14 @@ MODEL="${1:?usage: qa/noise-bench.sh <model.bin> [label]}"
 LABEL="${2:-baseline}"
 [[ -d qa/fixtures/wer-noise ]] || qa/noise-fixtures.sh
 
+# Build once here, not once per condition inside wer-harness.sh.
+if [[ -z "${WER_NO_BUILD:-}" ]]; then
+    source ~/.cargo/env
+    export CMAKE="${CMAKE:-$PWD/tools/cmake-local/cmake-3.31.7-macos-universal/CMake.app/Contents/bin/cmake}"
+    cargo build --release -p cadence-headless --features whisper >/dev/null
+fi
+export WER_NO_BUILD=1
+
 TMP=$(mktemp -d)
 CONDS=(clean)
 for d in qa/fixtures/wer-noise/*/manifest.tsv; do

@@ -10,6 +10,8 @@
 import CoreAudio
 
 public enum PinState: Equatable {
+    /// Not attempted yet on this engine (fresh engine, before the first tap build).
+    case pending
     /// Preference off: following the system default input on purpose.
     case off
     /// No built-in input device exists (Mac mini with nothing plugged in, etc.).
@@ -23,7 +25,7 @@ public enum PinState: Equatable {
         switch self {
         case .off: return " pin=off"
         case .noBuiltIn: return " pin=no-built-in"
-        case .held: return ""
+        case .held, .pending: return ""
         case .failed(let status): return " pin=FAILED(\(status))"
         }
     }
@@ -89,23 +91,28 @@ public enum RoutePolicy {
     /// Should the warm path re-apply the built-in pin before starting?
     ///
     /// - wanted: the user's "Use Built-in Microphone" preference.
-    /// - builtIn / current: CoreAudio device ids (nil when unknown).
-    /// - refusedFor: the device that was current the last time a pin attempt failed. A pin the
-    ///   system refused for this exact route is not retried on every key press (each retry tears
-    ///   the warm tap down and costs start latency); a new route gets a fresh attempt.
-    public static func needsRepin(wanted: Bool, builtIn: UInt32?, current: UInt32?,
-                                  refusedFor: UInt32?) -> Bool {
+    /// - builtIn: the built-in mic's CoreAudio id (nil when there is none).
+    /// - currentInputs: what capture takes input from — the device, or an aggregate's input
+    ///   members (voice processing always wraps the mic in an aggregate, so comparing the device
+    ///   id alone would call a held pin "drifted" forever).
+    /// - current / refusedFor: the current device id (0 = unreadable) and the device that was
+    ///   current right after the last refused pin. A refused route is not retried on every key
+    ///   press (each retry tears the warm tap down); a new route gets a fresh attempt.
+    public static func needsRepin(wanted: Bool, builtIn: UInt32?, currentInputs: [UInt32],
+                                  current: UInt32, refusedFor: UInt32?) -> Bool {
         guard wanted, let builtIn else { return false }
-        guard current != builtIn else { return false }
+        if currentInputs.contains(builtIn) { return false }
         if let refusedFor, refusedFor == current { return false }
         return true
     }
 
-    /// Classify a pin attempt from the set call's status and the device read back afterwards.
-    public static func pinResult(setStatus: Int32, builtIn: UInt32, readBack: UInt32?) -> PinState {
+    /// Classify a pin attempt from the set call's status and what capture reads back afterwards.
+    public static func pinResult(setStatus: Int32, builtIn: UInt32, readBackInputs: [UInt32])
+        -> PinState
+    {
         if setStatus != 0 { return .failed(setStatus) }
         // A clean status that does not read back means the unit silently kept its old device.
-        return readBack == builtIn ? .held : .failed(-1)
+        return readBackInputs.contains(builtIn) ? .held : .failed(-1)
     }
 
     /// "bluetooth" / "built-in" / "usb" / … from a CoreAudio transport FourCC.

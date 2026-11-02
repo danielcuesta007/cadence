@@ -351,49 +351,76 @@ pub mod whisper {
     }
 }
 
-/// Words that mark a bracketed/parenthesised span as a sound caption, not dictation.
-const NON_SPEECH_WORDS: &[&str] = &[
-    "music", "musical", "laugh", "laughs", "laughing", "laughter", "applause", "clapping",
-    "chatter", "noise", "noises", "silence", "inaudible", "indistinct", "unintelligible",
-    "cough", "coughs", "coughing", "sigh", "sighs", "sniffs", "crowd", "background", "static",
-    "beep", "beeping", "mumbling", "mumbles", "whispering", "whispers", "crosstalk", "foreign",
-    "blank_audio", "blank", "humming", "singing", "playing", "cheering", "speaking", "talking",
+/// Sound words: a `(...)`/`*...*` span must contain at least one of these to be a caption.
+const CAPTION_SOUNDS: &[&str] = &[
+    "music", "laugh", "laughs", "laughing", "laughter", "applause", "clapping", "cheering",
+    "chatter", "chattering", "inaudible", "indistinct", "unintelligible", "silence", "cough",
+    "coughs", "coughing", "sigh", "sighs", "sniffs", "mumbling", "mumbles", "crosstalk",
+    "blank_audio", "humming", "beep", "beeping", "whispering", "whispers", "noise", "noises",
+];
+
+/// Words allowed alongside a sound word in a caption ("upbeat music", "speaking in foreign
+/// language", "crowd chattering"). EVERY word of a `(...)`/`*...*` span must be a sound or one of
+/// these — so "(talking points)", "(background)" and "(foreign policy)" stay as the user's text.
+const CAPTION_MODIFIERS: &[&str] = &[
+    "upbeat", "soft", "gentle", "dramatic", "loud", "light", "quiet", "background", "crowd",
+    "audience", "people", "speaking", "talking", "in", "a", "foreign", "language", "and",
+    "playing", "continues", "plays", "static", "electronic", "piano", "guitar", "instrumental",
+];
+
+/// Whole captions whisper emits that carry no sound word.
+const CAPTION_PHRASES: &[&str] = &[
+    "speaking in foreign language",
+    "speaking foreign language",
+    "foreign language",
+    "no speech",
 ];
 
 /// Remove whisper's non-speech captions from a transcript (Step 15, noise in loud rooms).
 ///
 /// - `[...]`: whisper's caption convention ("[BLANK_AUDIO]", "[Music]", "[indistinct chatter]").
-///   Removed when it reads as a caption: letters/spaces/`_`/`-` only and at most six words — so
-///   anything with digits or symbols ("[0]", "[TODO: x]") is kept as text.
-/// - `(...)` and `*...*`: removed only when short (≤ 6 words) AND naming a sound
-///   ([`NON_SPEECH_WORDS`]) — "(music)", "(upbeat music)", "*laughs*" go; "(see appendix)" stays.
+///   Removed when non-empty, letters/spaces/`_`/`-` only and at most six words — anything with
+///   digits or symbols ("[0]", "[TODO: x]") stays.
+/// - `(...)` and `*...*`: removed only when every word is caption vocabulary and at least one is
+///   a sound ([`CAPTION_SOUNDS`], [`CAPTION_MODIFIERS`]): "(upbeat music)", "*laughs*" go;
+///   "(talking points)", "(see appendix)", "init()", "**bold**" stay.
 /// - `♪ ... ♪` / `♫`: lyrics transcribed off background music; the span and stray notes go.
 ///
-/// Whitespace is re-collapsed and orphaned space-before-punctuation fixed. A transcript that was
-/// nothing but captions comes back empty, which callers already treat as "no speech".
+/// Text with no caption is returned exactly as before this filter existed (only trimmed): the
+/// user's own spacing, newlines and leading punctuation (".5 mg") are never touched. Tidying runs
+/// only around a removed span. A transcript that was nothing but captions comes back empty, which
+/// callers already treat as "no speech".
 pub fn strip_non_speech(text: &str) -> String {
-    fn is_caption(inner: &str, need_keyword: bool) -> bool {
-        let words: Vec<&str> = inner.split_whitespace().collect();
-        if words.is_empty() || words.len() > 6 {
-            return words.is_empty();
-        }
-        let plain = inner
+    fn word_key(w: &str) -> String {
+        w.trim_matches(|c: char| !c.is_alphanumeric() && c != '_').to_lowercase()
+    }
+    fn plain(inner: &str) -> bool {
+        inner
             .chars()
-            .all(|c| c.is_alphabetic() || c.is_whitespace() || c == '_' || c == '-' || c == '\'');
-        if !plain {
+            .all(|c| c.is_alphabetic() || c.is_whitespace() || c == '_' || c == '-' || c == '\'')
+    }
+    fn square_caption(inner: &str) -> bool {
+        let n = inner.split_whitespace().count();
+        (1..=6).contains(&n) && plain(inner)
+    }
+    fn sound_caption(inner: &str) -> bool {
+        let words: Vec<String> = inner.split_whitespace().map(word_key).collect();
+        if words.is_empty() || words.len() > 6 || !plain(inner) {
             return false;
         }
-        if !need_keyword {
+        if CAPTION_PHRASES.contains(&words.join(" ").as_str()) {
             return true;
         }
-        words.iter().any(|w| {
-            let w = w.trim_matches(|c: char| !c.is_alphanumeric() && c != '_').to_lowercase();
-            NON_SPEECH_WORDS.contains(&w.as_str())
-        })
+        let known = |w: &String| {
+            CAPTION_SOUNDS.contains(&w.as_str()) || CAPTION_MODIFIERS.contains(&w.as_str())
+        };
+        words.iter().all(known) && words.iter().any(|w| CAPTION_SOUNDS.contains(&w.as_str()))
     }
 
     let chars: Vec<char> = text.chars().collect();
     let mut out = String::with_capacity(text.len());
+    let mut dropped = false;
+    let mut dropped_at_start = false;
     let mut i = 0;
     while i < chars.len() {
         let c = chars[i];
@@ -405,21 +432,27 @@ pub fn strip_non_speech(text: &str) -> String {
             _ => None,
         };
         if let Some(close) = close {
-            if let Some(off) = chars[i + 1..].iter().position(|&x| x == close) {
-                let inner: String = chars[i + 1..i + 1 + off].iter().collect();
-                let drop = match c {
-                    '[' => is_caption(&inner, false),
-                    '(' | '*' => is_caption(&inner, true),
-                    _ => true, // ♪ lyrics ♪
-                };
-                if drop {
-                    out.push(' ');
-                    i += off + 2;
-                    continue;
+            let span_end = chars[i + 1..].iter().position(|&x| x == close);
+            let drop_len = match (c, span_end) {
+                (_, Some(off)) => {
+                    let inner: String = chars[i + 1..i + 1 + off].iter().collect();
+                    let is_caption = match c {
+                        '[' => square_caption(&inner),
+                        '(' | '*' => sound_caption(&inner),
+                        _ => true, // ♪ lyrics ♪
+                    };
+                    is_caption.then_some(off + 2)
                 }
-            } else if c == '\u{266A}' || c == '\u{266B}' {
+                ('\u{266A}' | '\u{266B}', None) => Some(1),
+                _ => None,
+            };
+            if let Some(len) = drop_len {
+                if out.trim().is_empty() {
+                    dropped_at_start = true;
+                }
+                dropped = true;
                 out.push(' ');
-                i += 1;
+                i += len;
                 continue;
             }
         }
@@ -427,6 +460,10 @@ pub fn strip_non_speech(text: &str) -> String {
         i += 1;
     }
 
+    if !dropped {
+        return text.trim().to_string();
+    }
+    // Something was removed: close the gap it left (double spaces, " ," before punctuation).
     let collapsed = out.split_whitespace().collect::<Vec<_>>().join(" ");
     let mut tidy = String::with_capacity(collapsed.len());
     for ch in collapsed.chars() {
@@ -435,10 +472,13 @@ pub fn strip_non_speech(text: &str) -> String {
         }
         tidy.push(ch);
     }
-    // A caption at the very start can leave the sentence opening on its punctuation.
-    tidy.trim_start_matches(|c: char| matches!(c, ',' | '.' | ';' | ':') || c.is_whitespace())
-        .trim()
-        .to_string()
+    let tidy = tidy.trim();
+    if dropped_at_start {
+        // "[Music], send it" → "send it": only when the caption itself opened the text.
+        tidy.trim_start_matches([',', '.', ';', ':']).trim().to_string()
+    } else {
+        tidy.to_string()
+    }
 }
 
 /// Beam width from a `CADENCE_BEAM` value: `Some(n)` for n >= 2 (capped at 8), `None` (greedy)
@@ -486,17 +526,43 @@ mod tests {
             strip_non_speech("Budget (see appendix) is final."),
             "Budget (see appendix) is final."
         );
+        // Ordinary words that also appear in captions do not make prose a caption.
+        for keep in [
+            "The agenda (talking points) is attached.",
+            "Use the (background) layer.",
+            "We discussed (foreign policy) today.",
+            "We met (after the music festival last summer in town) again.",
+        ] {
+            assert_eq!(strip_non_speech(keep), keep);
+        }
         // Digits/symbols mean it is content, not a caption.
         assert_eq!(strip_non_speech("Use items[0] here."), "Use items[0] here.");
         assert_eq!(strip_non_speech("[TODO: fix] later"), "[TODO: fix] later");
-        // Long parentheticals are prose even if they mention music.
-        assert_eq!(
-            strip_non_speech("We met (after the music festival last summer in town) again."),
-            "We met (after the music festival last summer in town) again."
-        );
+        // Empty pairs are code/markdown, not captions.
+        assert_eq!(strip_non_speech("Call init() first."), "Call init() first.");
+        assert_eq!(strip_non_speech("use foo[] here"), "use foo[] here");
+        assert_eq!(strip_non_speech("**Note** this"), "**Note** this");
         // Lone markers stay.
         assert_eq!(strip_non_speech("a * b = c"), "a * b = c");
         assert_eq!(strip_non_speech("Plain dictation."), "Plain dictation.");
+    }
+
+    #[test]
+    fn uncaptioned_text_is_untouched() {
+        // No caption removed → identical to the old trim-only behaviour.
+        assert_eq!(strip_non_speech(".5 milligrams twice a day"), ".5 milligrams twice a day");
+        assert_eq!(strip_non_speech("...so anyway, send it"), "...so anyway, send it");
+        assert_eq!(strip_non_speech("ratio 3 : 1"), "ratio 3 : 1");
+        assert_eq!(strip_non_speech("line one\nline two"), "line one\nline two");
+        assert_eq!(strip_non_speech("  padded  "), "padded");
+        // A caption mid-text tidies only the gap, and leading punctuation is kept.
+        assert_eq!(
+            strip_non_speech(".5 mg (coughs) daily"),
+            ".5 mg daily"
+        );
+        // Typical whisper captions with modifiers.
+        assert_eq!(strip_non_speech("(speaking in foreign language)"), "");
+        assert_eq!(strip_non_speech("(crowd chattering) Hi."), "Hi.");
     }
 
     #[test]

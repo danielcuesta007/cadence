@@ -39,18 +39,31 @@ func runCaptureSelftest() -> Int32 {
     check("menu_hides_aggregate_name", !agg.menuTitle.contains("CADefault"))
 
     // Re-pin policy.
-    check("repin_when_drifted", RoutePolicy.needsRepin(wanted: true, builtIn: 10, current: 77, refusedFor: nil))
-    check("no_repin_when_held", !RoutePolicy.needsRepin(wanted: true, builtIn: 10, current: 10, refusedFor: nil))
-    check("no_repin_when_unwanted", !RoutePolicy.needsRepin(wanted: false, builtIn: 10, current: 77, refusedFor: nil))
-    check("no_repin_without_built_in", !RoutePolicy.needsRepin(wanted: true, builtIn: nil, current: 77, refusedFor: nil))
-    check("refused_route_not_hammered", !RoutePolicy.needsRepin(wanted: true, builtIn: 10, current: 77, refusedFor: 77))
-    check("new_route_gets_fresh_attempt", RoutePolicy.needsRepin(wanted: true, builtIn: 10, current: 88, refusedFor: 77))
-    check("unknown_current_repins", RoutePolicy.needsRepin(wanted: true, builtIn: 10, current: nil, refusedFor: nil))
+    func repin(_ wanted: Bool = true, builtIn: UInt32? = 10, inputs: [UInt32], current: UInt32,
+               refused: UInt32? = nil) -> Bool {
+        RoutePolicy.needsRepin(wanted: wanted, builtIn: builtIn, currentInputs: inputs,
+                               current: current, refusedFor: refused)
+    }
+    check("repin_when_drifted", repin(inputs: [77], current: 77))
+    check("no_repin_when_held", !repin(inputs: [10], current: 10))
+    check("no_repin_when_aggregate_wraps_built_in", !repin(inputs: [10], current: 500))
+    check("no_repin_when_unwanted", !repin(false, inputs: [77], current: 77))
+    check("no_repin_without_built_in", !repin(builtIn: nil, inputs: [77], current: 77))
+    check("refused_route_not_hammered", !repin(inputs: [77], current: 77, refused: 77))
+    check("refused_unreadable_route_not_hammered", !repin(inputs: [], current: 0, refused: 0))
+    check("new_route_gets_fresh_attempt", repin(inputs: [88], current: 88, refused: 77))
 
     // Pin outcome classification.
-    check("pin_held", RoutePolicy.pinResult(setStatus: 0, builtIn: 10, readBack: 10) == .held)
-    check("pin_error_status", RoutePolicy.pinResult(setStatus: -10851, builtIn: 10, readBack: 77) == .failed(-10851))
-    check("silent_pin_failure_caught", RoutePolicy.pinResult(setStatus: 0, builtIn: 10, readBack: 77) == .failed(-1))
+    check("pin_held", RoutePolicy.pinResult(setStatus: 0, builtIn: 10, readBackInputs: [10]) == .held)
+    check("pin_held_through_vp_aggregate",
+          RoutePolicy.pinResult(setStatus: 0, builtIn: 10, readBackInputs: [10]) == .held)
+    check("pin_error_status",
+          RoutePolicy.pinResult(setStatus: -10851, builtIn: 10, readBackInputs: [77]) == .failed(-10851))
+    check("silent_pin_failure_caught",
+          RoutePolicy.pinResult(setStatus: 0, builtIn: 10, readBackInputs: [77]) == .failed(-1))
+    check("pending_pin_is_silent", PinState.pending == .pending
+          && InputRoute(deviceName: "Mic", sampleRate: 48000, voiceProcessing: false, pin: .pending)
+              .description == "Mic @ 48000 Hz")
 
     check("transport_bluetooth", RoutePolicy.transportName(kAudioDeviceTransportTypeBluetooth) == "bluetooth")
     check("transport_ble", RoutePolicy.transportName(kAudioDeviceTransportTypeBluetoothLE) == "bluetooth")
