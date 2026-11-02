@@ -2,6 +2,24 @@
 
 Updated: 2026-11-01 · Phase: **1 (MVP spine)** · Blueprint: docs/CADENCE_BLUEPRINT.md
 
+## Step 13 — Even more forgiving hands-free, and tap-then-hold (2026-11-01)
+
+Objective (Daniel, verbatim): "the double tap shoudl be even mor eforgiving pls and hsoiudl
+be also abel to be riggerterfe with a long hold, the one tap end till applys".
+Interpreted as tap, then press-and-hold (a single long hold stays push-to-talk, or every
+held dictation would latch). Changes: first tap ≤0.45 s (was 0.35); gap = macOS
+double-click speed + 0.2 s, clamped 0.6–1.0 s (0.7 s default; was 0.5); the second press
+may be any length and latches the moment it goes DOWN (pill reads hands-free during the
+hold; a chord within 0.45 s of that press still retracts, later typing keeps the speech);
+one clean owner tap still finishes. Menu hint
+and README updated.
+
+Verified: hotkeys 123/123 (timing boundaries rewritten for the new values; new
+tap-then-hold, long finish press, Escape during a held second press, hands-free-off never
+latches); planting the old "second press must be quick" rule fails 6 checks; delivery 20/20.
+Trade-off: a lone tap now waits 0.7 s (default) before stopping; a short hold followed by
+another press within the gap latches hands-free instead of starting a new dictation.
+
 ## Step 12 — Easier Mac download without notarization (2026-11-01)
 
 Objective (Daniel): "i used the hombre version and it didnit work for me"; "make this
