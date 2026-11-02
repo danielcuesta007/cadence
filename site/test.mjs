@@ -528,9 +528,10 @@ test('a released version can never be re-stamped with a different checksum', () 
   assert.doesNotThrow(() => stamp(JSON.parse(JSON.stringify(d)), top.version, 'c'.repeat(64), '2026-11-02'));
 });
 
-// 2 Nov (ADR-0008): the open-core promises are a public commitment in Daniel's name. If the
-// "Free forever" or "Never paywalled" lists lose or gain an item, this fails: change the ADR too.
-test('the promises page keeps every free-forever promise', () => {
+// 2 Nov (ADR-0008): the open-core plans are public, in Daniel's name. He asked that the page
+// "never lie": nothing on it claims "forever" or "never", only what is true today and the plan.
+// If the "Free for now" or plan lists lose or gain an item, this fails: change the ADR too.
+test('the plans page keeps every free item and never over-promises', () => {
   const promises = pages['promises.html'];
   const items = name => {
     const list = promises.match(new RegExp(`<ul class="dash-list" data-promise="${name}">([\\s\\S]*?)</ul>`));
@@ -542,16 +543,19 @@ test('the promises page keeps every free-forever promise', () => {
     assert.equal(got.length, expected.length, `${name} has exactly ${expected.length} items`);
     for (const promise of expected) assert.ok(got.some(i => promise.test(i)), `${name} still promises ${promise}`);
   };
-  assert.match(promises, /<h2 id="free-forever">Free forever<\/h2>/);
-  keeps('free-forever', [/^Dictation in any app\.$/, /^On-device speech recognition\.$/, /^Both language keys/, /^Encrypted history\.$/, /^Noisy Room Mode\.$/, /^Anything already shipped for free\.$/]);
-  keeps('never-paywalled', [/no accounts and no tracking/, /check works offline/, /separate add-on\. The free app never needs it/, /from the source stays free/]);
-  assert.match(promises, /Every version already released stays MIT licensed/);
+  assert.match(promises, /<h2 id="free-for-now">Free for now<\/h2>/);
+  assert.match(promises, /for now it stays this way/);
+  keeps('free-for-now', [/^Dictation in any app\.$/, /^On-device speech recognition\.$/, /^Both language keys/, /^Encrypted history\.$/, /^Noisy Room Mode\.$/, /^Everything else already shipped for free\.$/]);
+  keeps('the-plan', [/no accounts and no tracking/, /check would work offline/, /separate add-on\. The free app would not need it/, /from the source stays free/]);
+  assert.match(promises, /every version already released stays MIT licensed/);
+  const visible = promises.replace(/<[^>]+>/g, ' ');
+  assert.doesNotMatch(visible, /\bforever\b|\bnever\b|\bpromise/i, 'no forever/never/promise claims on the page');
   // Checkpoints stay in order, and the only date in the plan is TreeHacks.
   const steps = [...promises.matchAll(/<li><span class="release-tag[^"]*">[^<]+<\/span><p>([\s\S]*?)<\/p><\/li>/g)].map(m => m[1]);
   assert.equal(steps.length, 5);
   assert.match(steps[0], /TreeHacks, February 2027/);
   assert.match(steps[4], /Ship the paid build/);
-  const ideas = promises.match(/<p>Ideas for paid extras, not promises:[^<]*<\/p>/);
+  const ideas = promises.match(/<p>Ideas for paid extras, nothing decided:[^<]*<\/p>/);
   assert.ok(ideas, 'paid extras are labelled as ideas, not promises');
   for (const text of [...steps.slice(1), ideas[0]]) assert.doesNotMatch(text, /\b20\d\d\b|\b(January|February|March|April|May|June|July|August|September|October|November|December)\b/, 'no dates on paid features');
 });

@@ -8,7 +8,7 @@ import { pathToFileURL } from 'node:url';
 import { BLOCKS, JSON_URL, fill, load, stamp, validate } from './releases.mjs';
 
 export const PAGES = ['index.html', 'features.html', 'download.html', 'versions.html', 'help.html', 'about.html', 'promises.html', 'legal.html'];
-const NAV = [['features.html', 'Features'], ['versions.html', 'Versions'], ['help.html', 'Help'], ['about.html', 'About'], ['promises.html', 'Promises']];
+const NAV = [['features.html', 'Features'], ['versions.html', 'Versions'], ['help.html', 'Help'], ['about.html', 'About'], ['promises.html', 'Plans']];
 // The footer lists every page the header does, plus home and download.
 const FOOTER_PAGES = [['index.html', 'Home'], NAV[0], ['download.html', 'Download'], ...NAV.slice(1)];
 const current = (page, href) => (page === href ? ' aria-current="page"' : '');

@@ -291,10 +291,10 @@ docs/               blueprint, ADRs, status, decisions
 tools/              headless CLI and local toolchain helpers
 ```
 
-## Promises
+## Plans
 
-What stays free forever, what is never paywalled, and the checkpoints ahead are public
-promises on the site: [cadence-dictation.pages.dev/promises](https://cadence-dictation.pages.dev/promises)
+What is free today, the plan for a paid version, and the checkpoints ahead are public on
+the site: [cadence-dictation.pages.dev/promises](https://cadence-dictation.pages.dev/promises)
 (source `site/promises.html`, decision in [ADR-0008](docs/adr/0008-open-core-and-paid-convenience.md)).
 
 ## License
