@@ -32,7 +32,7 @@ ${FOOTER_PAGES.map(([href, label]) => `    <a href="${href}">${label}</a>`).join
     <a href="legal.html#privacy">Privacy</a>
     <a href="legal.html#license">License</a>
     <a href="legal.html#credits">Credits</a>
-    <a href="https://github.com/danieljcuesta007/cadence" rel="noopener">Source</a>
+    <a href="https://github.com/danielcuesta007/cadence" rel="noopener">Source</a>
   </nav>
   <p class="fineprint">© 2026 Daniel Cuesta. MIT licensed. Speech recognition by Whisper (OpenAI) via whisper.cpp, both MIT. Wispr Flow, Superwhisper, Apple and macOS belong to their owners. Cadence is not affiliated with or endorsed by them.</p>
 </footer>`;
