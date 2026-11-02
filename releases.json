@@ -4,13 +4,13 @@
     {
       "version": "0.1.6",
       "build": 12,
-      "date": null,
-      "sha256": null,
+      "date": "2026-11-02",
+      "sha256": "7e1933c358aa05451e77b2749e5bb96cc34d8ddd0aa4232c83580ff5546d16d3",
       "title": "Clearer about your microphone in loud rooms",
       "highlights": [
         "Sound captions such as [indistinct chatter] or (music) are no longer typed into your text when a room is loud.",
         "The Cadence menu names the microphone you are really using, and says when it is a lower-quality headset mic.",
-        "With earbuds or a USB headset connected, Cadence listens through their mic, which is closer to your mouth in a loud room. Turn on Always Use Built-in Microphone to keep your Mac's mic instead.",
+        "With earbuds connected, Cadence listens through their mic, which is closer to your mouth in a loud room. Turn on Always Use Built-in Microphone to keep your Mac's mic instead.",
         "New Noisy Room Mode in Dictation Settings: fewer mistakes when other people are talking nearby, at the cost of slower results. Off by default."
       ]
     },
