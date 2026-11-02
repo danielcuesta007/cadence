@@ -1,6 +1,54 @@
 # STATUS — Cadence build progress
 
-Updated: 2026-11-01 · Phase: **1 (MVP spine)** · Blueprint: docs/CADENCE_BLUEPRINT.md
+Updated: 2026-11-02 · Phase: **1 (MVP spine)** · Blueprint: docs/CADENCE_BLUEPRINT.md
+
+## Step 15 — Background noise in loud rooms (2026-11-02)
+
+Objective (Daniel, verbatim): "music is always playing in my earbuds but ther was also some in
+the speaker saround me, i was in nthe cafeteria".
+
+**What the live log showed** (~/.cadence/logs/cadence.log, 560 captures): almost every capture
+is the MacBook Pro Microphone @ 44.1 kHz with voice processing off — it hears the whole room.
+There is no loopback path, so earbud music is not captured. But 121 captures (22%, incl.
+20:14–20:16 on 1 Nov) logged an opaque `CADefaultDeviceAggregate-…`: the built-in-mic pin's
+result was discarded, so the log could not say which mic was really used.
+
+**Measured (synthetic, `qa/noise-bench.sh`, ggml-small.bin, English pinned, WER):**
+
+| condition | before | filter + suppress-nst | filter + beam 5 |
+|---|---|---|---|
+| clean | 1.33% | 1.33% | 1.78% |
+| babble 10 dB | 4.89% | 4.89% | (not run) |
+| babble 5 dB | 5.78% | 5.78% | (not run) |
+| babble 0 dB | 17.78% | 17.33% | **13.78%** |
+| music 10 / 5 / 0 dB | 1.78 / 1.78 / 2.22% | (not rerun) | (not run) |
+
+Findings: **music is not the problem** (2.2% even at 0 dB); **nearby voices are** (17.8% at
+0 dB). At 0 dB whisper also captioned a whole sentence as "[indistinct chatter]" — Cadence would
+have typed that into the document. suppress-nst is a one-word change: not a lever. **Beam 5 is the only decode lever
+that moved babble** (−9 errors, ~22% relative at 0 dB) but costs one clean-audio error and
+~70% more ASR time — NOT made default; candidate for an opt-in "noisy room" mode or for
+switching on only when the room is measured loud (Daniel's call). Synthetic = ranking and
+regression only; no real-room claim. Raw: qa/noise-results-*.json.
+
+**Shipped on feat/step15-noise (65d2aab+):**
+- `InputRoute` (CadenceCapture): capture-start log names aggregate members and the pin result
+  (`pin=FAILED(status)`); the warm path re-pins the built-in mic when the route drifted, but
+  never re-hammers a pin the system refused for that same route; the menu shows the real mic
+  in plain words ("AirPods · 24 kHz · headset mic, lower quality"). `cadence selftest-capture`
+  25/25, in CI.
+- `strip_non_speech` (core/asr): sound captions ([indistinct chatter], (music), *laughs*,
+  ♪ lyrics ♪, [BLANK_AUDIO]) are never typed; real brackets ("items[0]", "(see appendix)")
+  survive. All-caption results become the existing "empty" outcome. 7/7 asr tests.
+- Bench: `qa/noise.py` (+ `qa.test_noise` 8/8, in CI), `qa/noise-fixtures.sh`,
+  `qa/noise-bench.sh`; A/B switches CADENCE_BEAM, CADENCE_SUPPRESS_NST, CADENCE_KEEP_CAPTIONS
+  (defaults unchanged). Every new test was watched failing once on a planted bug.
+
+**Not done / not claimed:** Voice Isolation (AUVoiceIO) stays experimental + off — it cannot
+be benched offline and its teardown froze the app before; needs a consented live A/B (same
+lines, quiet vs real cafeteria, VP off vs on). A background-speech gate (only the loudest,
+closest talker) is the next lever the numbers point to. Bench latency figures are inflated
+(machine load average 35–63 during runs); WER is deterministic.
 
 ## Step 14 — Versions in one place, and a multi-page site (2026-11-02)
 

@@ -2,6 +2,7 @@
 # Step 15: score clean + every noisy condition through the real pipeline and print one table.
 # Usage: qa/noise-bench.sh <model.bin> [label]
 #   Env: anything cadence-headless honours (CADENCE_* A/B overrides) applies to every run.
+#        NOISE_ONLY="babble" limits the noisy conditions to names containing that text.
 # Writes qa/noise-results-<label>.json (label defaults to "baseline").
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -13,6 +14,7 @@ TMP=$(mktemp -d)
 CONDS=(clean)
 for d in qa/fixtures/wer-noise/*/manifest.tsv; do
     [[ "$d" == *"/_sources/"* ]] && continue
+    [[ -n "${NOISE_ONLY:-}" && "$d" != *"${NOISE_ONLY}"* ]] && continue
     CONDS+=("${${d:h}:t}")
 done
 for c in $CONDS; do

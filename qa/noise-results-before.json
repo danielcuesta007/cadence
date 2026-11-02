@@ -1,0 +1,171 @@
+{
+ "generated": "2026-11-02T05:06:45Z",
+ "model": "ggml-small.bin",
+ "env": {
+  "CADENCE_LANG": "en",
+  "CADENCE_KEEP_CAPTIONS": "1"
+ },
+ "conditions": {
+  "clean": {
+   "wer": 0.0133,
+   "errors": 3,
+   "ref_words": 225,
+   "asr_ms_mean": 391,
+   "worst": [
+    {
+     "wav": "d01.wav",
+     "wer": 0.167,
+     "hyp": "Please send the invoice to accounts payable by Friday 21."
+    },
+    {
+     "wav": "k03.wav",
+     "wer": 0.067,
+     "hyp": "My address is 42 Wollaby Way, Apartment 7, and the postcode is 2000."
+    },
+    {
+     "wav": "s01.wav",
+     "wer": 0.0,
+     "hyp": "Hey, just checking in about tomorrow's meeting. Can we push it to 3.30 instead?"
+    }
+   ]
+  },
+  "babble-0db": {
+   "wer": 0.1778,
+   "errors": 40,
+   "ref_words": 225,
+   "asr_ms_mean": 410,
+   "worst": [
+    {
+     "wav": "f01.wav",
+     "wer": 1.0,
+     "hyp": "[indistinct chatter]"
+    },
+    {
+     "wav": "t02.wav",
+     "wer": 0.6,
+     "hyp": "In friction, he's living the clich\u00e9 and the art of face is never written in plain text."
+    },
+    {
+     "wav": "k01.wav",
+     "wer": 0.333,
+     "hyp": "Admir, Erex, Salado Bread, and two avocados to the shopping list."
+    }
+   ]
+  },
+  "babble-10db": {
+   "wer": 0.0489,
+   "errors": 11,
+   "ref_words": 225,
+   "asr_ms_mean": 382,
+   "worst": [
+    {
+     "wav": "d01.wav",
+     "wer": 0.167,
+     "hyp": "Please send the invoice to accounts payable by Friday the 21st."
+    },
+    {
+     "wav": "d02.wav",
+     "wer": 0.167,
+     "hyp": "I think the route causes a race condition between the audio callback and the ring buffer clear."
+    },
+    {
+     "wav": "d03.wav",
+     "wer": 0.143,
+     "hyp": "Navigator settings, then privacy and security, then microphone, and enable access for cadence."
+    }
+   ]
+  },
+  "babble-5db": {
+   "wer": 0.0578,
+   "errors": 13,
+   "ref_words": 225,
+   "asr_ms_mean": 458,
+   "worst": [
+    {
+     "wav": "d01.wav",
+     "wer": 0.25,
+     "hyp": "Please send the invoice to account payable by Friday the 21st."
+    },
+    {
+     "wav": "d02.wav",
+     "wer": 0.167,
+     "hyp": "I think the route causes a race condition between the audio callback and the ring buffer clear."
+    },
+    {
+     "wav": "k01.wav",
+     "wer": 0.167,
+     "hyp": "At meal, eggs, sourdough bread, and two avocados to the shopping list."
+    }
+   ]
+  },
+  "music-0db": {
+   "wer": 0.0222,
+   "errors": 5,
+   "ref_words": 225,
+   "asr_ms_mean": 348,
+   "worst": [
+    {
+     "wav": "d01.wav",
+     "wer": 0.167,
+     "hyp": "Please send the invoice to accounts payable by Friday the 21st."
+    },
+    {
+     "wav": "k03.wav",
+     "wer": 0.067,
+     "hyp": "My address is 42 Wollaby Way, Apartment 7, and the postcode is 2000."
+    },
+    {
+     "wav": "s01.wav",
+     "wer": 0.062,
+     "hyp": "Okay, just checking in about tomorrow's meeting. Can we push it to 3.30 instead?"
+    }
+   ]
+  },
+  "music-10db": {
+   "wer": 0.0178,
+   "errors": 4,
+   "ref_words": 225,
+   "asr_ms_mean": 354,
+   "worst": [
+    {
+     "wav": "d01.wav",
+     "wer": 0.167,
+     "hyp": "Please send the invoice to accounts payable by Friday the 21st."
+    },
+    {
+     "wav": "k03.wav",
+     "wer": 0.067,
+     "hyp": "My address is 42 Wollaby Way, Apartment 7, and the postcode is 2000."
+    },
+    {
+     "wav": "k02.wav",
+     "wer": 0.059,
+     "hyp": "The flight depart Sydney at 6.45 in the morning and lands in Auckland around noon."
+    }
+   ]
+  },
+  "music-5db": {
+   "wer": 0.0178,
+   "errors": 4,
+   "ref_words": 225,
+   "asr_ms_mean": 411,
+   "worst": [
+    {
+     "wav": "d01.wav",
+     "wer": 0.167,
+     "hyp": "Please send the invoice to accounts payable by Friday the 21st."
+    },
+    {
+     "wav": "k03.wav",
+     "wer": 0.067,
+     "hyp": "My address is 42 Wollaby Way, Apartment 7, and the postcode is 2000."
+    },
+    {
+     "wav": "k02.wav",
+     "wer": 0.059,
+     "hyp": "The flight depart Sydney at 6.45 in the morning and lands in Auckland around noon."
+    }
+   ]
+  }
+ }
+}

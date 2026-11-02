@@ -2,6 +2,18 @@
   "_about": "The one list of Cadence versions, newest first. qa/package-app.sh reads the app version and build from the first entry; qa/make-dmg.sh refuses any other version and stamps that entry's date and sha256; the site renders its version timeline and download details from this file (site/releases.mjs). Add a new entry at the top to start a release.",
   "releases": [
     {
+      "version": "0.1.6",
+      "build": 10,
+      "date": null,
+      "sha256": null,
+      "title": "Clearer about your microphone in loud rooms",
+      "highlights": [
+        "Sound captions such as [indistinct chatter] or (music) are no longer typed into your text when a room is loud.",
+        "The Cadence menu names the microphone you are really using, and says when it is a lower-quality headset mic.",
+        "If your Mac switches microphones mid-session, Cadence moves back to the built-in one before you dictate."
+      ]
+    },
+    {
       "version": "0.1.5",
       "build": 9,
       "date": "2026-11-01",
