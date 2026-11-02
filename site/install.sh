@@ -13,8 +13,8 @@
 # Remove it: quit Cadence and drag it from Applications to the Trash.
 set -eu
 
-VERSION="0.1.5"
-SHA256="bfefc929442146a405dbe9d43ae862068cd51457a91ba714a742581578501d70"
+VERSION="0.1.6"
+SHA256="7e1933c358aa05451e77b2749e5bb96cc34d8ddd0aa4232c83580ff5546d16d3"
 URL="${CADENCE_URL:-https://github.com/danielcuesta007/cadence/releases/download/v$VERSION/Cadence.dmg}"  # override only for testing; the checksum still applies
 BUNDLE_ID="dev.cadence.app"
 
