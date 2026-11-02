@@ -18,11 +18,16 @@ UX spec + roadmap). Progress: [`docs/STATUS.md`](docs/STATUS.md) · Decisions:
 
 ## Dictation controls and recovery
 
-Hold either Option key to dictate as before. Or **quickly double-tap the same Option key**
-(two short taps, within 300 ms) to start hands-free dictation. The pill says **hands-free**;
-tap that key once to finish and insert. Right-Option and Left-Option keep their own
-language assignments. Escape cancels. A single short tap finishes after the double-tap
-window; releasing a normal hold finishes immediately. Option shortcuts still work.
+Hold either Option key to dictate as before. Or **double-tap the same Option key** to
+start hands-free dictation. Each tap just needs to be short (about a third of a second);
+the pause between the two taps can be relaxed: it follows your macOS double-click speed
+(System Settings › Accessibility › Pointer Control), at least 0.4 s and at most 0.8 s,
+0.5 s by default. After the first tap the pill says **tap again for hands-free**; after
+the second it says **hands-free**. Tap that key once to finish and insert (finishing never
+presses Return). Right-Option and Left-Option keep their own language assignments.
+Escape cancels. A single short tap (or a very brief hold) finishes when that pause runs
+out, so it can take up to the full pause to stop; releasing a normal hold finishes
+immediately. Option shortcuts still work.
 Recordings automatically finish at 29 minutes so the audio buffer cannot silently discard
 the beginning. Streaming previews copy only the recent eight seconds of audio.
 

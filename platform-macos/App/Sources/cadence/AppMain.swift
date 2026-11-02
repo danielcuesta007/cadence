@@ -284,6 +284,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         router.liveInsertionEnabled = { [weak self] in self?.liveInsertion ?? false }
         hotkeys.handsFreeEnabled = { [weak self] in self?.handsFree ?? true }
         hotkeys.onHandsFreeChanged = { [weak self] on in self?.overlay.setHandsFree(on) }
+        hotkeys.onTapPendingChanged = { [weak self] on in self?.overlay.setTapPending(on) }
         Appearance.apply(store?.appearance ?? .system)
         Appearance.persist = { [weak self] choice in
             self?.historyStore?.setAppearance(choice)
