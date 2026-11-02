@@ -25,7 +25,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var handsFree = true
     var liveInsertion = false
     let copyDictationsItem = NSMenuItem(title: "Keep Latest Dictation on Clipboard", action: nil, keyEquivalent: "")
-    let handsFreeItem = NSMenuItem(title: "Double-Tap Option for Hands-Free", action: nil, keyEquivalent: "")
+    let handsFreeItem = NSMenuItem(title: "Double-Tap to Start Hands-Free", action: nil, keyEquivalent: "")
+    let inputDeviceItem = NSMenuItem(title: "Input: checking…", action: nil, keyEquivalent: "")
+    let filteringStatusItem = NSMenuItem(title: "Voice filtering: checking…", action: nil, keyEquivalent: "")
     let liveInsertionItem = NSMenuItem(title: "Live Insertion (Supported Fields)", action: nil, keyEquivalent: "")
     let overlay = OverlayHUD()
     let capture = AudioCapture()
@@ -123,6 +125,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self?.lastActiveApp = app
         }
         let menu = NSMenu()
+        let versionItem = NSMenuItem(title: "Cadence \(version) (\(build))", action: nil, keyEquivalent: "")
+        versionItem.isEnabled = false
+        menu.addItem(versionItem)
         stateMenuItem.isEnabled = false
         menu.addItem(stateMenuItem)
         menu.addItem(hintItem)
@@ -148,6 +153,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         verbatimItem.target = self
         menu.addItem(verbatimItem)
         let features = NSMenu()
+        features.addItem(inputDeviceItem)
+        features.addItem(filteringStatusItem)
+        features.addItem(.separator())
         for (item, action) in [(copyDictationsItem, #selector(toggleCopyDictations)),
                                (handsFreeItem, #selector(toggleHandsFree))] {
             item.target = self
@@ -276,6 +284,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         router.liveInsertionEnabled = { [weak self] in self?.liveInsertion ?? false }
         hotkeys.handsFreeEnabled = { [weak self] in self?.handsFree ?? true }
         hotkeys.onHandsFreeChanged = { [weak self] on in self?.overlay.setHandsFree(on) }
+        hotkeys.onTapPendingChanged = { [weak self] on in self?.overlay.setTapPending(on) }
         Appearance.apply(store?.appearance ?? .system)
         Appearance.persist = { [weak self] choice in
             self?.historyStore?.setAppearance(choice)
@@ -538,6 +547,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// Refresh the per-app toggle for whatever is frontmost as the menu opens. We're an
     /// LSUIElement, so opening our menu leaves the user's app frontmost.
     func menuNeedsUpdate(_ menu: NSMenu) {
+        inputDeviceItem.title = "Input: \(capture.inputDescription)"
+        filteringStatusItem.title = capture.voiceProcessingActive ? "Voice filtering: active" : "Voice filtering: off"
+        inputDeviceItem.isEnabled = false
+        filteringStatusItem.isEnabled = false
         copyDictationsItem.state = copyDictations ? .on : .off
         handsFreeItem.state = handsFree ? .on : .off
         liveInsertionItem.state = liveInsertion ? .on : .off
@@ -589,7 +602,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         var parts = ["Hold Right-Option (\(name(primary)))"]
         if secondary != "off" { parts.append("Left-Option (\(name(secondary)))") }
-        if handsFree { parts.append("Double-tap to start/finish hands-free") }
+        if handsFree { parts.append("Double-tap to start · tap once to finish") }
         parts.append("Esc cancels")
         parts.append("⌃⌥⌘Z undoes")
         return parts.joined(separator: " · ")

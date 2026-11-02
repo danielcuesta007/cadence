@@ -29,6 +29,37 @@ public enum PTTKey: String {
     case secondary  // Left-Option
 }
 
+/// How forgiving the hands-free double-tap is. Two separate limits, because they answer
+/// different questions: `maxTapDuration` decides whether a press was a tap at all (anything
+/// longer is an ordinary hold and stops the instant it is released), while `interTapGap` is
+/// how long after a tap's release the second press may still arrive. Only the gap is
+/// generous — people hesitate *between* taps far more than they linger *on* one — so holds
+/// keep their immediate start and immediate stop.
+public struct PTTTiming: Equatable {
+    public var maxTapDuration: TimeInterval
+    public var interTapGap: TimeInterval
+
+    public init(maxTapDuration: TimeInterval, interTapGap: TimeInterval) {
+        self.maxTapDuration = maxTapDuration
+        self.interTapGap = interTapGap
+    }
+
+    /// The macOS default double-click speed is 0.5 s.
+    public static let standard = PTTTiming(maxTapDuration: 0.35, interTapGap: 0.5)
+    /// Never stricter than 0.4 s (the old 0.3 s window was the complaint) and never so long
+    /// that a lone short tap waits noticeably before it stops.
+    public static let gapRange: ClosedRange<TimeInterval> = 0.4...0.8
+
+    /// Follows the user's own double-click speed (System Settings › Accessibility › Pointer
+    /// Control), so someone who has already told macOS they click slowly gets the same
+    /// allowance here. Clamped to `gapRange`; a missing or invalid reading means `standard`.
+    public static func following(doubleClickInterval: TimeInterval) -> PTTTiming {
+        guard doubleClickInterval.isFinite, doubleClickInterval > 0 else { return .standard }
+        let gap = min(max(doubleClickInterval, gapRange.lowerBound), gapRange.upperBound)
+        return PTTTiming(maxTapDuration: standard.maxTapDuration, interTapGap: gap)
+    }
+}
+
 /// The push-to-talk arbitration rules, factored out of the event tap so they can be exercised
 /// without synthesizing CGEvents (the Swift layer has no XCTest — see `cadence
 /// selftest-hotkeys`). Three invariants live here:
@@ -60,9 +91,17 @@ public struct PTTArbiter {
     private var pressedAt: TimeInterval = 0
     private var secondTap = false
     private var physicalDown = false
-    public static let tapWindow: TimeInterval = 0.3
+    /// Read at the start of each gesture by the monitor; fixed for the gesture's lifetime.
+    public var timing: PTTTiming
 
-    public init() {}
+    public init(timing: PTTTiming = .standard) { self.timing = timing }
+
+    /// A tap was released and recording continues while a second tap may still latch
+    /// hands-free. The pill says so, so a hesitant user knows the first tap registered.
+    /// Stays true while the second press is down, so the hint does not flicker off mid-tap.
+    public var awaitingSecondTap: Bool {
+        !latched && ((deadline != nil && !physicalDown) || (secondTap && physicalDown))
+    }
 
     public mutating func resolve(key: PTTKey, down: Bool, otherModifiers: Bool,
                                  now: TimeInterval = 0, handsFree: Bool = false) -> Decision {
@@ -80,7 +119,9 @@ public struct PTTArbiter {
             guard !otherModifiers, !physicalDown, held == nil || held == key else { return .ignore }
             physicalDown = true
             pressedAt = now
-            secondTap = deadline.map { now <= $0 } ?? false
+            // Strictly before the deadline: at the deadline itself `expire` has already
+            // stopped the first tap, and the two must agree on which side the edge falls.
+            secondTap = deadline.map { now < $0 } ?? false
             deadline = nil
             if held == nil {
                 held = key
@@ -90,23 +131,22 @@ public struct PTTArbiter {
         }
         guard held == key, physicalDown else { return .ignore }
         physicalDown = false
-        let quick = now - pressedAt <= Self.tapWindow
+        let quick = now - pressedAt <= timing.maxTapDuration
+        // The second tap that STARTS hands-free is consumed by the branch below.
+        // Once latched, one clean owner-key release finishes. Chords/typing call
+        // retract(), clearing physicalDown, so their releases cannot finish speech.
+        if latched {
+            reset()
+            return .stop(key)
+        }
         if secondTap && quick {
             secondTap = false
-            if latched {
-                reset()
-                return .stop(key)
-            }
             latched = true
             return .ignore
         }
         secondTap = false
-        if latched {
-            deadline = quick ? now + Self.tapWindow : nil
-            return .ignore
-        }
         if quick {
-            deadline = now + Self.tapWindow
+            deadline = now + timing.interTapGap
             return .ignore
         }
         reset()
@@ -163,13 +203,28 @@ public final class HotkeyMonitor {
 
     public var handsFreeEnabled: () -> Bool = { true }
     public var onHandsFreeChanged: ((Bool) -> Void)?
+    /// True while a first tap waits for its second (recording is already running).
+    public var onTapPendingChanged: ((Bool) -> Void)?
+    /// Read once per gesture, so a settings change never reshapes a gesture in flight.
+    public var timing: () -> PTTTiming = {
+        PTTTiming.following(doubleClickInterval: NSEvent.doubleClickInterval)
+    }
     private var releaseTimer: Timer?
+    private var tapPending = false
 
     public func resetGesture() {
         releaseTimer?.invalidate()
         releaseTimer = nil
         arbiter.reset()
         onHandsFreeChanged?(false)
+        publishTapPending()
+    }
+
+    private func publishTapPending() {
+        let now = arbiter.awaitingSecondTap
+        guard now != tapPending else { return }
+        tapPending = now
+        onTapPendingChanged?(now)
     }
 
     private var tap: CFMachPort?
@@ -256,6 +311,7 @@ public final class HotkeyMonitor {
         // Retract rather than transcribe silence. Esc above has already been handled.
         if type == .keyDown, arbiter.held != nil, Self.typingRetracts(keyCode: keyCode) {
             fire(arbiter.retract())
+            publishTapPending()
         }
         let repeating = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
         if type == .keyDown, !repeating { firedChord = nil }
@@ -331,21 +387,34 @@ public final class HotkeyMonitor {
         let chordMods: CGEventFlags = [.maskCommand, .maskControl, .maskShift]
         let others = !flags.intersection(chordMods).isEmpty
         // Resolve an elapsed first tap before a later press can steal its pending stop.
-        fire(arbiter.expire(now: ProcessInfo.processInfo.systemUptime))
+        // One clock read: expire and resolve must judge the same instant, or a press landing
+        // on the deadline could be neither a second tap nor a fresh start.
+        let now = ProcessInfo.processInfo.systemUptime
+        fire(arbiter.expire(now: now))
         let wasLatched = arbiter.latched
+        if down, arbiter.held == nil { arbiter.timing = timing() }
         fire(arbiter.resolve(key: key, down: down, otherModifiers: others,
-                             now: ProcessInfo.processInfo.systemUptime,
-                             handsFree: handsFreeEnabled()))
+                             now: now, handsFree: handsFreeEnabled()))
         if wasLatched != arbiter.latched { onHandsFreeChanged?(arbiter.latched) }
+        scheduleExpiry()
+        publishTapPending()
+    }
+
+    /// Arms the lone-tap stop. If the timer ever fires before the deadline (run-loop
+    /// coalescing), it re-arms instead of leaving a lone tap recording forever.
+    private func scheduleExpiry() {
         releaseTimer?.invalidate()
-        if let deadline = arbiter.deadline {
-            releaseTimer = Timer(timeInterval: max(0, deadline - ProcessInfo.processInfo.systemUptime),
-                                 repeats: false) { [weak self] _ in
-                guard let self else { return }
-                self.fire(self.arbiter.expire(now: ProcessInfo.processInfo.systemUptime))
-            }
-            RunLoop.main.add(releaseTimer!, forMode: .common)
+        releaseTimer = nil
+        guard let deadline = arbiter.deadline else { return }
+        let timer = Timer(timeInterval: max(0, deadline - ProcessInfo.processInfo.systemUptime),
+                          repeats: false) { [weak self] _ in
+            guard let self else { return }
+            self.fire(self.arbiter.expire(now: ProcessInfo.processInfo.systemUptime))
+            self.scheduleExpiry()
+            self.publishTapPending()
         }
+        releaseTimer = timer
+        RunLoop.main.add(timer, forMode: .common)
     }
 
     /// A non-PTT modifier moved: retract any hold it just turned into a chord.
@@ -354,6 +423,7 @@ public final class HotkeyMonitor {
         let chordMods: CGEventFlags = [.maskCommand, .maskControl, .maskShift]
         guard !flags.intersection(chordMods).isEmpty else { return }
         fire(arbiter.retract())
+        publishTapPending()
     }
 
     private func fire(_ decision: PTTArbiter.Decision) {
