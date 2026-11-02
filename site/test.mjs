@@ -496,9 +496,11 @@ test('releases.json refuses mistakes and stamps only the version on top', () => 
     d => { d.releases[0].highlights = []; },
   ];
   for (const mutate of bad) { const d = base(); mutate(d); assert.throws(() => validate(d)); }
-  const d = base(); const top = d.releases[0].version;
-  assert.throws(() => stamp(base(), '9.9.9', 'a'.repeat(64), '2026-11-02'), /add 9\.9\.9 at the top/);
-  assert.throws(() => stamp(base(), top, 'nothex', '2026-11-02'));
+  // Work on a copy whose top entry is unreleased, whatever the live list's state.
+  const unreleased = () => { const x = base(); x.releases[0].date = null; x.releases[0].sha256 = null; return x; };
+  const d = unreleased(); const top = d.releases[0].version;
+  assert.throws(() => stamp(unreleased(), '9.9.9', 'a'.repeat(64), '2026-11-02'), /add 9\.9\.9 at the top/);
+  assert.throws(() => stamp(unreleased(), top, 'nothex', '2026-11-02'));
   const out = stamp(d, top, 'b'.repeat(64), '2026-11-02');
   assert.equal(out.releases[0].sha256, 'b'.repeat(64)); assert.equal(latest(out.releases).version, top);
   assert.match(timeline(out.releases), /November 2, 2026/);
