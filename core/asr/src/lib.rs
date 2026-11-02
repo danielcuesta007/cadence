@@ -154,6 +154,24 @@ pub mod whisper {
         needed.clamp(MIN_REFINED_CTX, FULL_AUDIO_CTX)
     }
 
+    /// Refined-pass sampling. Greedy by default (the measured latency/accuracy point);
+    /// `CADENCE_BEAM=<n>` (n >= 2) switches to beam search for A/B measurement on noisy audio
+    /// (Step 15, qa/noise-bench.sh). Not a shipped setting until the bench says so.
+    fn refined_strategy() -> SamplingStrategy {
+        match super::parse_beam(std::env::var("CADENCE_BEAM").ok().as_deref()) {
+            Some(beam_size) => SamplingStrategy::BeamSearch {
+                beam_size,
+                patience: -1.0,
+            },
+            None => SamplingStrategy::Greedy { best_of: 1 },
+        }
+    }
+
+    /// `1`/`true`/`on` → true; anything else (or unset) → false. A/B switches only.
+    fn env_flag(name: &str) -> bool {
+        super::parse_flag(std::env::var(name).ok().as_deref())
+    }
+
     /// Language for the decode: `CADENCE_LANG` if set (e.g. "es" to force Spanish, "en" to
     /// force English), otherwise "auto" so whisper detects it from the audio. Auto-detection
     /// requires a multilingual model — the English-only `.en` tiers ignore it and stay English.
@@ -238,9 +256,12 @@ pub mod whisper {
                 .ctx
                 .create_state()
                 .map_err(|e| AsrError::Engine(format!("state: {e}")))?;
-            let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
+            let mut params = FullParams::new(refined_strategy());
             params.set_n_threads(self.threads);
             params.set_language(Some(&self.lang));
+            if env_flag("CADENCE_SUPPRESS_NST") {
+                params.set_suppress_nst(true);
+            }
             params.set_print_special(false);
             params.set_print_progress(false);
             params.set_print_realtime(false);
@@ -320,13 +341,184 @@ pub mod whisper {
                 out.push_str(text);
             }
         }
-        out.trim().to_string()
+        // Noise makes whisper caption the room instead of the speaker ("[indistinct chatter]",
+        // "(music)") — never words the user said, so they must not be typed into their document.
+        // `CADENCE_KEEP_CAPTIONS=1` keeps them, for before/after measurement only.
+        if super::parse_flag(std::env::var("CADENCE_KEEP_CAPTIONS").ok().as_deref()) {
+            return out.trim().to_string();
+        }
+        super::strip_non_speech(&out)
     }
+}
+
+/// Words that mark a bracketed/parenthesised span as a sound caption, not dictation.
+const NON_SPEECH_WORDS: &[&str] = &[
+    "music", "musical", "laugh", "laughs", "laughing", "laughter", "applause", "clapping",
+    "chatter", "noise", "noises", "silence", "inaudible", "indistinct", "unintelligible",
+    "cough", "coughs", "coughing", "sigh", "sighs", "sniffs", "crowd", "background", "static",
+    "beep", "beeping", "mumbling", "mumbles", "whispering", "whispers", "crosstalk", "foreign",
+    "blank_audio", "blank", "humming", "singing", "playing", "cheering", "speaking", "talking",
+];
+
+/// Remove whisper's non-speech captions from a transcript (Step 15, noise in loud rooms).
+///
+/// - `[...]`: whisper's caption convention ("[BLANK_AUDIO]", "[Music]", "[indistinct chatter]").
+///   Removed when it reads as a caption: letters/spaces/`_`/`-` only and at most six words — so
+///   anything with digits or symbols ("[0]", "[TODO: x]") is kept as text.
+/// - `(...)` and `*...*`: removed only when short (≤ 6 words) AND naming a sound
+///   ([`NON_SPEECH_WORDS`]) — "(music)", "(upbeat music)", "*laughs*" go; "(see appendix)" stays.
+/// - `♪ ... ♪` / `♫`: lyrics transcribed off background music; the span and stray notes go.
+///
+/// Whitespace is re-collapsed and orphaned space-before-punctuation fixed. A transcript that was
+/// nothing but captions comes back empty, which callers already treat as "no speech".
+pub fn strip_non_speech(text: &str) -> String {
+    fn is_caption(inner: &str, need_keyword: bool) -> bool {
+        let words: Vec<&str> = inner.split_whitespace().collect();
+        if words.is_empty() || words.len() > 6 {
+            return words.is_empty();
+        }
+        let plain = inner
+            .chars()
+            .all(|c| c.is_alphabetic() || c.is_whitespace() || c == '_' || c == '-' || c == '\'');
+        if !plain {
+            return false;
+        }
+        if !need_keyword {
+            return true;
+        }
+        words.iter().any(|w| {
+            let w = w.trim_matches(|c: char| !c.is_alphanumeric() && c != '_').to_lowercase();
+            NON_SPEECH_WORDS.contains(&w.as_str())
+        })
+    }
+
+    let chars: Vec<char> = text.chars().collect();
+    let mut out = String::with_capacity(text.len());
+    let mut i = 0;
+    while i < chars.len() {
+        let c = chars[i];
+        let close = match c {
+            '[' => Some(']'),
+            '(' => Some(')'),
+            '*' => Some('*'),
+            '\u{266A}' | '\u{266B}' => Some(c),
+            _ => None,
+        };
+        if let Some(close) = close {
+            if let Some(off) = chars[i + 1..].iter().position(|&x| x == close) {
+                let inner: String = chars[i + 1..i + 1 + off].iter().collect();
+                let drop = match c {
+                    '[' => is_caption(&inner, false),
+                    '(' | '*' => is_caption(&inner, true),
+                    _ => true, // ♪ lyrics ♪
+                };
+                if drop {
+                    out.push(' ');
+                    i += off + 2;
+                    continue;
+                }
+            } else if c == '\u{266A}' || c == '\u{266B}' {
+                out.push(' ');
+                i += 1;
+                continue;
+            }
+        }
+        out.push(c);
+        i += 1;
+    }
+
+    let collapsed = out.split_whitespace().collect::<Vec<_>>().join(" ");
+    let mut tidy = String::with_capacity(collapsed.len());
+    for ch in collapsed.chars() {
+        if matches!(ch, ',' | '.' | '!' | '?' | ';' | ':') && tidy.ends_with(' ') {
+            tidy.pop();
+        }
+        tidy.push(ch);
+    }
+    // A caption at the very start can leave the sentence opening on its punctuation.
+    tidy.trim_start_matches(|c: char| matches!(c, ',' | '.' | ';' | ':') || c.is_whitespace())
+        .trim()
+        .to_string()
+}
+
+/// Beam width from a `CADENCE_BEAM` value: `Some(n)` for n >= 2 (capped at 8), `None` (greedy)
+/// for unset, garbage, 0 or 1.
+pub(crate) fn parse_beam(v: Option<&str>) -> Option<i32> {
+    match v?.trim().parse::<i32>().ok()? {
+        n if n >= 2 => Some(n.min(8)),
+        _ => None,
+    }
+}
+
+/// A/B switch value: `1`/`true`/`on` (any case) → true, everything else → false.
+pub(crate) fn parse_flag(v: Option<&str>) -> bool {
+    v.map(|v| matches!(v.trim().to_lowercase().as_str(), "1" | "true" | "on"))
+        .unwrap_or(false)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn captions_are_stripped() {
+        assert_eq!(strip_non_speech("[indistinct chatter]"), "");
+        assert_eq!(strip_non_speech(" [BLANK_AUDIO]"), "");
+        assert_eq!(strip_non_speech("(upbeat music)"), "");
+        assert_eq!(
+            strip_non_speech("[Music] Send the invoice by Friday."),
+            "Send the invoice by Friday."
+        );
+        assert_eq!(
+            strip_non_speech("Send it (laughs) by Friday, okay?"),
+            "Send it by Friday, okay?"
+        );
+        assert_eq!(strip_non_speech("Sure *coughs* that works."), "Sure that works.");
+        assert_eq!(strip_non_speech("Hello [crowd noise], team."), "Hello, team.");
+        assert_eq!(strip_non_speech("\u{266A} la la love \u{266A} Call me."), "Call me.");
+        assert_eq!(strip_non_speech("Done \u{266B}"), "Done");
+    }
+
+    #[test]
+    fn real_text_in_brackets_survives() {
+        // Parentheses without a sound word are the user's own punctuation.
+        assert_eq!(
+            strip_non_speech("Budget (see appendix) is final."),
+            "Budget (see appendix) is final."
+        );
+        // Digits/symbols mean it is content, not a caption.
+        assert_eq!(strip_non_speech("Use items[0] here."), "Use items[0] here.");
+        assert_eq!(strip_non_speech("[TODO: fix] later"), "[TODO: fix] later");
+        // Long parentheticals are prose even if they mention music.
+        assert_eq!(
+            strip_non_speech("We met (after the music festival last summer in town) again."),
+            "We met (after the music festival last summer in town) again."
+        );
+        // Lone markers stay.
+        assert_eq!(strip_non_speech("a * b = c"), "a * b = c");
+        assert_eq!(strip_non_speech("Plain dictation."), "Plain dictation.");
+    }
+
+    #[test]
+    fn beam_override_parses_and_caps() {
+        assert_eq!(parse_beam(None), None);
+        assert_eq!(parse_beam(Some("")), None);
+        assert_eq!(parse_beam(Some("1")), None);
+        assert_eq!(parse_beam(Some("0")), None);
+        assert_eq!(parse_beam(Some("five")), None);
+        assert_eq!(parse_beam(Some(" 5 ")), Some(5));
+        assert_eq!(parse_beam(Some("64")), Some(8));
+    }
+
+    #[test]
+    fn flag_override_is_strict() {
+        assert!(parse_flag(Some("1")));
+        assert!(parse_flag(Some("On")));
+        assert!(parse_flag(Some("TRUE")));
+        assert!(!parse_flag(Some("0")));
+        assert!(!parse_flag(Some("yes please")));
+        assert!(!parse_flag(None));
+    }
 
     #[test]
     fn mock_returns_configured_text() {

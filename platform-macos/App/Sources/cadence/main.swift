@@ -102,6 +102,7 @@ func parseArgs() -> Config {
         case "login-item": c.mode = "login-item"
         case "doctor": c.mode = "doctor"
         case "selftest-lifecycle": c.mode = "selftest-lifecycle"
+        case "selftest-capture": c.mode = "selftest-capture"
         // Only after login-item: anywhere else it would be silently ignored.
         case "--register" where c.mode == "login-item": c.register = true
         case "--out": c.outDir = it.next()
@@ -145,6 +146,8 @@ case "doctor":
     exit(runDoctor())
 case "selftest-lifecycle":
     exit(runLifecycleSelftest())
+case "selftest-capture":
+    exit(runCaptureSelftest())
 default:
     runApp(config) // never returns
 }

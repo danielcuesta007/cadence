@@ -547,7 +547,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// Refresh the per-app toggle for whatever is frontmost as the menu opens. We're an
     /// LSUIElement, so opening our menu leaves the user's app frontmost.
     func menuNeedsUpdate(_ menu: NSMenu) {
-        inputDeviceItem.title = "Input: \(capture.inputDescription)"
+        inputDeviceItem.title = "Input: \(capture.currentRoute.menuTitle)"
         filteringStatusItem.title = capture.voiceProcessingActive ? "Voice filtering: active" : "Voice filtering: off"
         inputDeviceItem.isEnabled = false
         filteringStatusItem.isEnabled = false
