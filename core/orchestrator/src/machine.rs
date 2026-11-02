@@ -304,9 +304,17 @@ impl Orchestrator {
                     return fx;
                 }
                 if empty {
-                    // Silence: no insertion, gentle feedback (§29).
+                    // Silence: no insertion, gentle feedback (§29). Logged too: a field log
+                    // must tell "heard nothing usable" apart from a lost dictation (Step 16:
+                    // a loud-room capture through AirPods left no trace at all).
                     self.current = None;
                     self.state = State::Idle;
+                    fx.push(Effect::LogNote {
+                        message: format!(
+                            "{}: nothing usable heard (silence or only background sound) — nothing typed",
+                            utterance.0
+                        ),
+                    });
                     fx.push(Effect::PlaySound {
                         sound: Sound::DidntCatchThat,
                     });
