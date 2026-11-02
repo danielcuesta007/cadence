@@ -88,17 +88,30 @@ store; if that store is unavailable, changes last for the current app session.
 
 ## Install
 
-From the first release (v0.1.0) on, download `Cadence.dmg` from [the latest release](https://github.com/danieljcuesta007/cadence/releases/latest)
-or the site, https://cadence-dictation.pages.dev, or use Homebrew:
+The easiest way: open **Terminal** (⌘ Space, type Terminal, Return), paste this, press Return:
+
+```sh
+curl -fsSL https://cadence-dictation.pages.dev/install.sh | sh
+```
+
+It downloads the release, checks its SHA-256, puts Cadence in Applications (or
+`~/Applications` if you aren't an admin) and opens it. No password and no security
+warning, because macOS only puts that warning on files a browser or Homebrew downloads.
+Run the same line again to update. [Read the script](site/install.sh) first; it's short.
+
+Homebrew works too, also without admin rights:
 
 ```sh
 brew tap danieljcuesta007/cadence https://github.com/danieljcuesta007/cadence
 brew install --cask cadence
 ```
 
-Cadence isn't notarized by Apple (that costs $99 a year, and Cadence is free), so the first
-open needs **System Settings › Privacy & Security › Open Anyway** (on macOS 14, Control-click
-the app › Open also works; if neither appears, `xattr -dr com.apple.quarantine /Applications/Cadence.app`).
+Or download `Cadence.dmg` from [the latest release](https://github.com/danieljcuesta007/cadence/releases/latest)
+or https://cadence-dictation.pages.dev. Cadence isn't notarized by Apple (that costs $99 a
+year, and Cadence is free), so an app from the .dmg needs **System Settings › Privacy &
+Security › Open Anyway** the first time (on macOS 14, Control-click the app › Open also
+works; if neither appears, `xattr -dr com.apple.quarantine /Applications/Cadence.app`).
+The one-line install and Homebrew skip that step.
 Releases:
 `qa/package-app.sh && qa/make-dmg.sh <version>` (it refuses a wrong model, missing licenses
 or a broken signature, and fills in the checksum for the cask and site).

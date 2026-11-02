@@ -12,14 +12,26 @@ cask "cadence" do
   homepage "https://cadence-dictation.pages.dev"
 
   depends_on arch: :arm64
-  depends_on macos: ">= :sonoma"
+  depends_on macos: :sonoma
 
-  app "Cadence.app"
+  # Works without admin rights: /Applications when this account can write to it,
+  # --appdir always wins.
+  apps_dir = File.writable?("/Applications") ? "/Applications" : File.expand_path("~/Applications")
+  app "Cadence.app", target: "#{apps_dir}/Cadence.app"
+
+  # Cadence isn't notarized (that costs $99 a year, and Cadence is free). Homebrew marks
+  # what it downloads as "from the internet", which would make macOS block the first open.
+  # The download was already checked against the sha256 above, so clear that mark on this
+  # one app, exactly as the one-line installer does.
+  postflight do
+    system_command "/usr/bin/xattr",
+                   args:         ["-dr", "com.apple.quarantine", "#{apps_dir}/Cadence.app"],
+                   must_succeed: false
+  end
 
   caveats <<~EOS
-    Cadence isn't notarized by Apple (that costs $99 a year, and Cadence is free).
-    The first time you open it: System Settings > Privacy & Security > Open Anyway.
-    No Open Anyway button? Run: xattr -dr com.apple.quarantine /Applications/Cadence.app
+    Cadence is in #{apps_dir}. Open it once; it lives in the menu bar and asks for
+    Microphone and Accessibility the first time.
     Your dictation history lives in ~/.cadence; uninstalling the app leaves it in place.
   EOS
 end
