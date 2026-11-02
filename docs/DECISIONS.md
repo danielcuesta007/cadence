@@ -89,3 +89,13 @@ Format: date · decision · why · reversibility. Larger decisions get an ADR in
     decode time and one extra error on quiet audio. Refined pass only; the instant pass stays
     greedy. `CADENCE_BEAM` still overrides for A/B. Real-room benefit is unmeasured until
     Daniel uses it in a loud room; don't claim more than the bench shows.
+
+## 2026-11-02 (business model)
+
+24. **Open core plus a paid convenience build** — Daniel chose it over going private or a
+    source-available licence. The core stays MIT and public; money comes from a signed,
+    notarized, auto-updating build with support, and from extra features in a separate
+    private repo that depends on the core (never the reverse). Privacy and offline use are
+    never paywalled. Repo stays public through TreeHacks 2027; READINESS gates (name, ND IP,
+    LLC, merchant of record) clear before any sale. Already-published versions stay MIT
+    regardless. See ADR-0008. Reversible until something is sold.
