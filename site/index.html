@@ -127,14 +127,14 @@
       <p class="small">Apple silicon Mac · macOS 14 Sonoma or later · about 500 MB, because the speech model comes with it</p>
       <p class="or"><span>or</span></p>
       <a class="button ghost" href="https://github.com/danieljcuesta007/cadence/releases/latest/download/Cadence.dmg">Download Cadence.dmg</a>
-      <p class="small">Or with Homebrew:</p>
+      <p class="small">Or with Homebrew. No admin password and no security warning either; it installs into your own Applications folder:</p>
       <pre><code>brew tap danieljcuesta007/cadence https://github.com/danieljcuesta007/cadence
-brew install --cask cadence</code></pre>
-      <button type="button" class="copy" data-copy="brew tap danieljcuesta007/cadence https://github.com/danieljcuesta007/cadence &amp;&amp; brew install --cask cadence">Copy</button>
+brew install --cask --appdir=~/Applications cadence</code></pre>
+      <button type="button" class="copy" data-copy="brew tap danieljcuesta007/cadence https://github.com/danieljcuesta007/cadence &amp;&amp; brew install --cask --appdir=~/Applications cadence">Copy</button>
     </div>
     <div class="first-open">
       <h3 id="why-warning">Used the .dmg? Why macOS asks you to confirm</h3>
-      <p>The one-line install skips all of this: Terminal downloads aren't flagged the way browser downloads are, and the script checks the file itself. If you downloaded the .dmg instead, read on.</p>
+      <p>The one-line install and Homebrew skip all of this: each checks the file against its published checksum, then clears the flag macOS puts on downloaded apps. If you downloaded the .dmg in a browser instead, read on. (Dragging into Applications may ask for an administrator's password; without one, drag Cadence into the Applications folder inside your home folder.)</p>
       <p>Apple only skips that warning for apps from developers who pay $99 a year for its Developer Program. Cadence is free, and staying free meant not passing that cost on to you. So it isn't notarized by Apple, and macOS will ask you to confirm once, the first time you open it. That was a deliberate choice, not an oversight.</p>
       <h3>Open it the first time</h3>
       <ol>
@@ -148,7 +148,7 @@ brew install --cask cadence</code></pre>
       <p>It only shows for about an hour after macOS blocks the app, so open Cadence once more and look again. If it still isn't there, paste this into Terminal, press Return, then open Cadence normally:</p>
       <pre><code>xattr -dr com.apple.quarantine /Applications/Cadence.app</code></pre>
       <button type="button" class="copy" data-copy="xattr -dr com.apple.quarantine /Applications/Cadence.app">Copy</button>
-      <p>That removes the "downloaded from the internet" flag macOS puts on the app, and changes nothing else. Only run it on a download whose checksum matches the one below.</p>
+      <p>If Cadence is in the Applications folder inside your home folder, use <code>~/Applications/Cadence.app</code> instead. That removes the "downloaded from the internet" flag macOS puts on the app, and changes nothing else. Only run it on a download whose checksum matches the one below.</p>
       <p>Cadence needs an Apple silicon Mac (M1 or newer) on macOS 14 Sonoma or later. On an older Mac it won't open, even after these steps.</p>
       <h3>Want a desktop widget?</h3>
       <p>It comes with the app. Open the Cadence menu in your Mac’s menu bar and turn on <b>Show Desktop Widget</b> to see today’s and this week’s words, streak, pace, time saved and all-time words. Click the widget’s logo to open Cadence. Drag it to place it; hide it anytime from the same menu or its close button. It stays on your desktop while Cadence is running, and remembers your choice next time.</p>
