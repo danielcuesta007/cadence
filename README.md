@@ -96,21 +96,27 @@ curl -fsSL https://cadence-dictation.pages.dev/install.sh | sh
 
 It downloads the release, checks its SHA-256, puts Cadence in Applications (or
 `~/Applications` if you aren't an admin) and opens it. No password and no security
-warning, because macOS only puts that warning on files a browser or Homebrew downloads.
+warning: Terminal downloads aren't flagged the way browser downloads (or AirDrop, Mail and
+Messages) are, and the script checks the file itself.
 Run the same line again to update. [Read the script](site/install.sh) first; it's short.
 
-Homebrew works too, also without admin rights:
+Homebrew works too, also without admin rights or a warning (it installs into
+`~/Applications`, checks the sha256, then clears the download flag on Cadence alone):
 
 ```sh
 brew tap danieljcuesta007/cadence https://github.com/danieljcuesta007/cadence
-brew install --cask cadence
+brew install --cask --appdir=~/Applications cadence
 ```
+
+Already installed with the one-line command? Keep updating with that same command
+rather than mixing in Homebrew, so you never end up with two copies.
 
 Or download `Cadence.dmg` from [the latest release](https://github.com/danieljcuesta007/cadence/releases/latest)
 or https://cadence-dictation.pages.dev. Cadence isn't notarized by Apple (that costs $99 a
 year, and Cadence is free), so an app from the .dmg needs **System Settings › Privacy &
 Security › Open Anyway** the first time (on macOS 14, Control-click the app › Open also
-works; if neither appears, `xattr -dr com.apple.quarantine /Applications/Cadence.app`).
+works; if neither appears, `xattr -dr com.apple.quarantine /Applications/Cadence.app`, or
+`~/Applications/Cadence.app` if that's where you put it).
 The one-line install and Homebrew skip that step.
 Releases:
 `qa/package-app.sh && qa/make-dmg.sh <version>` (it refuses a wrong model, missing licenses
