@@ -29,12 +29,12 @@ public enum PTTKey: String {
     case secondary  // Left-Option
 }
 
-/// How forgiving the hands-free double-tap is. Two separate limits, because they answer
-/// different questions: `maxTapDuration` decides whether a press was a tap at all (anything
-/// longer is an ordinary hold and stops the instant it is released), while `interTapGap` is
-/// how long after a tap's release the second press may still arrive. Only the gap is
-/// generous — people hesitate *between* taps far more than they linger *on* one — so holds
-/// keep their immediate start and immediate stop.
+/// How forgiving the hands-free gesture is. Two separate limits, because they answer
+/// different questions: `maxTapDuration` decides whether the FIRST press was a tap (a longer
+/// first press is an ordinary hold and stops the instant it is released), while
+/// `interTapGap` is how long after that tap's release the second press may still arrive.
+/// The second press may be any length (tap-then-hold): it latches hands-free the moment it
+/// goes down, so the pill says so while the key is still held.
 public struct PTTTiming: Equatable {
     public var maxTapDuration: TimeInterval
     public var interTapGap: TimeInterval
@@ -92,6 +92,8 @@ public struct PTTArbiter {
     private var pressedAt: TimeInterval = 0
     private var secondTap = false
     private var physicalDown = false
+    /// The press that latched hands-free is still down; its release must not finish.
+    private var latchPress = false
     /// Read at the start of each gesture by the monitor; fixed for the gesture's lifetime.
     public var timing: PTTTiming
 
@@ -100,9 +102,7 @@ public struct PTTArbiter {
     /// A tap was released and recording continues while a second tap may still latch
     /// hands-free. The pill says so, so a hesitant user knows the first tap registered.
     /// Stays true while the second press is down, so the hint does not flicker off mid-tap.
-    public var awaitingSecondTap: Bool {
-        !latched && ((deadline != nil && !physicalDown) || (secondTap && physicalDown))
-    }
+    public var awaitingSecondTap: Bool { deadline != nil && !latched && !physicalDown }
 
     public mutating func resolve(key: PTTKey, down: Bool, otherModifiers: Bool,
                                  now: TimeInterval = 0, handsFree: Bool = false) -> Decision {
@@ -122,34 +122,37 @@ public struct PTTArbiter {
             pressedAt = now
             // Strictly before the deadline: at the deadline itself `expire` has already
             // stopped the first tap, and the two must agree on which side the edge falls.
-            secondTap = deadline.map { now < $0 } ?? false
+            let inGap = deadline.map { now < $0 } ?? false
             deadline = nil
             if held == nil {
                 held = key
                 return .start(key)
             }
+            // The second press latches on the way DOWN, whatever its length (tap-then-hold),
+            // so the pill reads hands-free while it is held and a late brush of another key
+            // cannot throw the speech away. A chord within the first instant still retracts.
+            if inGap, !latched {
+                latched = true
+                latchPress = true
+                secondTap = true
+            }
             return .ignore
         }
         guard held == key, physicalDown else { return .ignore }
         physicalDown = false
-        let quick = now - pressedAt <= timing.maxTapDuration
-        // The second tap that STARTS hands-free is consumed by the branch below.
+        if latchPress {
+            latchPress = false
+            secondTap = false
+            return .ignore
+        }
         // Once latched, one clean owner-key release finishes. Chords/typing call
         // retract(), clearing physicalDown, so their releases cannot finish speech.
         if latched {
             reset()
             return .stop(key)
         }
-        // Tap-then-hold also latches: the second press may be any length (a hesitant user
-        // often presses and keeps holding). Only the FIRST press must be a tap, so a plain
-        // hold is still push-to-talk and stops on release.
-        if secondTap {
-            secondTap = false
-            latched = true
-            return .ignore
-        }
-        secondTap = false
-        if quick {
+        // Only the FIRST press must be a tap, so a plain hold stays push-to-talk.
+        if now - pressedAt <= timing.maxTapDuration {
             deadline = now + timing.interTapGap
             return .ignore
         }
@@ -166,6 +169,7 @@ public struct PTTArbiter {
     }
 
     public mutating func reset() {
+        latchPress = false
         held = nil
         latched = false
         deadline = nil
@@ -173,9 +177,17 @@ public struct PTTArbiter {
         secondTap = false
     }
 
-    public mutating func retract() -> Decision {
+    /// `now` defaults to "long after the press": callers without a clock keep speech.
+    public mutating func retract(now: TimeInterval = .infinity) -> Decision {
+        // A chord on the press that just latched (⌥e as the second press) is typing, not
+        // speech: retract it like any accidental hold.
+        if latched, latchPress, now - pressedAt <= timing.maxTapDuration, let key = held {
+            reset()
+            return .cancel(key)
+        }
         // Hands-free dictation permits ordinary typing and modifier shortcuts.
         if latched {
+            latchPress = false
             deadline = nil
             secondTap = false
             physicalDown = false
@@ -314,7 +326,7 @@ public final class HotkeyMonitor {
         // Typing while a PTT is held is not speech — it is ⌥e for an accent, or a shortcut.
         // Retract rather than transcribe silence. Esc above has already been handled.
         if type == .keyDown, arbiter.held != nil, Self.typingRetracts(keyCode: keyCode) {
-            fire(arbiter.retract())
+            fire(arbiter.retract(now: ProcessInfo.processInfo.systemUptime))
             publishTapPending()
         }
         let repeating = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
@@ -426,7 +438,7 @@ public final class HotkeyMonitor {
         guard arbiter.held != nil else { return }
         let chordMods: CGEventFlags = [.maskCommand, .maskControl, .maskShift]
         guard !flags.intersection(chordMods).isEmpty else { return }
-        fire(arbiter.retract())
+        fire(arbiter.retract(now: ProcessInfo.processInfo.systemUptime))
         publishTapPending()
     }
 

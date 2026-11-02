@@ -230,8 +230,8 @@ func runHotkeySelftest() -> Int32 {
         check("clean_tap_after_shortcut_finishes", edge(false, 4.2) == .stop(.primary) && !a.latched)
     }
 
-    // Forgiving double-tap: tap length and the pause between taps are separate limits, and
-    // only the pause is generous. Boundaries are tested on both sides with an explicit timing
+    // Forgiving hands-free: first-tap length and the pause between presses are separate
+    // limits; the second press may be any length. Boundaries are tested on both sides with an explicit timing
     // so the checks never depend on this Mac's double-click setting.
     do {
         let t = PTTTiming(maxTapDuration: 0.45, interTapGap: 0.7)
@@ -303,9 +303,19 @@ func runHotkeySelftest() -> Int32 {
         _ = h.resolve(key: .primary, down: true, otherModifiers: false, now: 0, handsFree: true)
         _ = h.resolve(key: .primary, down: false, otherModifiers: false, now: 0.1, handsFree: true)
         _ = h.resolve(key: .primary, down: true, otherModifiers: false, now: 0.5, handsFree: true)
-        check("pending_hint_holds_during_second_press", h.awaitingSecondTap)
-        _ = h.resolve(key: .primary, down: false, otherModifiers: false, now: 0.55, handsFree: true)
-        check("pending_hint_clears_on_latch", h.latched && !h.awaitingSecondTap)
+        check("second_press_latches_on_down", h.latched && !h.awaitingSecondTap)
+        check("latching_release_does_not_finish", h.resolve(key: .primary, down: false,
+              otherModifiers: false, now: 5, handsFree: true) == .ignore && h.latched)
+        var k = PTTArbiter(timing: t)
+        _ = k.resolve(key: .primary, down: true, otherModifiers: false, now: 0, handsFree: true)
+        _ = k.resolve(key: .primary, down: false, otherModifiers: false, now: 0.1, handsFree: true)
+        _ = k.resolve(key: .primary, down: true, otherModifiers: false, now: 0.5, handsFree: true)
+        check("late_typing_in_latching_hold_keeps_speech", k.retract(now: 2) == .ignore && k.latched)
+        check("late_typing_release_is_noop", k.resolve(key: .primary, down: false, otherModifiers: false,
+              now: 3, handsFree: true) == .ignore && k.latched)
+        _ = k.resolve(key: .primary, down: true, otherModifiers: false, now: 4, handsFree: true)
+        check("tap_after_late_typing_finishes", k.resolve(key: .primary, down: false, otherModifiers: false,
+              now: 4.1, handsFree: true) == .stop(.primary))
 
         // Hesitant latch, then a single clean tap finishes exactly once (no Return pressed:
         // the arbiter only ever emits start/stop/cancel, insertion never submits).
@@ -332,7 +342,7 @@ func runHotkeySelftest() -> Int32 {
         _ = d.resolve(key: .primary, down: true, otherModifiers: false, now: 0, handsFree: true)
         _ = d.resolve(key: .primary, down: false, otherModifiers: false, now: 0.1, handsFree: true)
         _ = d.resolve(key: .primary, down: true, otherModifiers: false, now: 0.5, handsFree: true)
-        check("typing_on_second_press_retracts", d.retract() == .cancel(.primary) && d.held == nil)
+        check("typing_on_second_press_retracts", d.retract(now: 0.55) == .cancel(.primary) && d.held == nil)
         check("retracted_release_is_noop", d.resolve(key: .primary, down: false, otherModifiers: false,
               now: 2, handsFree: true) == .ignore && !d.latched)
         var e = PTTArbiter(timing: t)
