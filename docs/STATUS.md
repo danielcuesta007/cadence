@@ -179,7 +179,7 @@ v0.1.3 download, app branding and widget instructions remain current.
 highlights, date/sha256 null) → `qa/build-shell.sh` → `qa/package-app.sh` (reads version)
 → `qa/make-dmg.sh` (stamps releases.json, cask, install.sh, site pages) → tag + `gh release
 create --draft` + `gh release upload` (retry on 408) + publish → PR stamps to dev → dev→main →
-`cd site && node build.mjs && CLOUDFLARE_ACCOUNT_ID=d9d35efa53d77867a5eccd77b66c32c3 npx
+`cd site && node build.mjs && CLOUDFLARE_ACCOUNT_ID=<personal account, see private notes> npx
 wrangler pages deploy dist --project-name cadence-dictation --branch main`. After editing
 releases.json or the shared header/footer, run `node site/pages.mjs` (tests fail on stale pages).
 
