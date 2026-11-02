@@ -186,11 +186,12 @@ func runHotkeySelftest() -> Int32 {
         check("\(key)_second_release_latches", edge(false, 0.25) == .ignore && a.latched)
         check("\(key)_latched_does_not_expire", a.expire(now: 20) == .ignore && a.latched)
         check("\(key)_typing_keeps_recording", a.retract() == .ignore && a.latched)
-        _ = edge(true, 21); _ = edge(false, 21.05)
-        check("\(key)_one_tap_does_not_finish", a.expire(now: 22) == .ignore && a.latched)
-        _ = edge(true, 23); _ = edge(false, 23.05)
-        _ = edge(true, 23.15)
-        check("\(key)_double_tap_finishes", edge(false, 23.2) == .stop(key) && a.held == nil)
+        let foreignDown = a.resolve(key: key == .primary ? .secondary : .primary,
+                                    down: true, otherModifiers: false, now: 20.5, handsFree: true)
+        check("\(key)_foreign_key_cannot_finish", foreignDown == .ignore && a.latched)
+        check("\(key)_finish_waits_for_release", edge(true, 21) == .ignore && a.latched)
+        check("\(key)_single_tap_finishes", edge(false, 21.05) == .stop(key) && a.held == nil)
+        check("\(key)_finish_does_not_fire_twice", edge(false, 21.1) == .ignore && a.expire(now: 22) == .ignore)
         _ = edge(true, 30)
         check("\(key)_hold_stops_without_delay", edge(false, 32) == .stop(key))
         _ = edge(true, 40); _ = edge(false, 40.05)
@@ -221,9 +222,9 @@ func runHotkeySelftest() -> Int32 {
         _ = edge(true, 3.15); _ = edge(false, 3.2)
         _ = edge(true, 4)
         _ = a.retract() // Option+letter while hands-free: not a stop tap.
-        _ = edge(false, 4.05)
-        _ = edge(true, 4.15); _ = edge(false, 4.2)
-        check("shortcut_breaks_stop_double_tap", a.latched)
+        check("shortcut_release_does_not_finish", edge(false, 4.05) == .ignore && a.latched)
+        _ = edge(true, 4.15)
+        check("clean_tap_after_shortcut_finishes", edge(false, 4.2) == .stop(.primary) && !a.latched)
     }
 
     let pass = checks.allSatisfy { $0.pass }

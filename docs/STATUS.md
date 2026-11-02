@@ -2,6 +2,32 @@
 
 Updated: 2026-11-01 · Phase: **1 (MVP spine)** · Blueprint: docs/CADENCE_BLUEPRINT.md
 
+## Step 10 — Single-tap finish and microphone visibility (2026-11-01)
+
+Daniel requested double-tap START / single-tap FINISH for long hands-free dictation,
+clearer versions and better recognition with music. Gesture update: the owning Option
+key's next clean release stops once; the second starting tap still latches, foreign
+keys do not stop it, chords/typing cannot accidentally finish, and ordinary holds remain.
+Pill/menu/README wording now matches. Package version0.1.4(7), visible in the app menu.
+Dictation Settings shows actual Input and Voice filtering state, including processing
+fallback, rather than implying the saved preference is active.
+
+Verified: new regression failed on old behavior; revised gesture suite74/74, delivery20/20,
+insertion9/9, release Swift build and packaging5/5 pass. Rust core unchanged; reused the
+exact released Whisper/Metal static library from cadence-dictation-controls. Review/CI,
+merge and installation receipts will be recorded in the local continuation checkpoint.
+
+Music/noise work remains OPEN: actual recent captures used MacBook Pro Microphone@44100Hz
+with voice processing inactive. No system-output loopback capture. Playback destination
+is not yet established; asked Daniel earbuds/headphones vs speakers. Voice Isolation
+remains experimental/off after the known AUVoiceIO teardown freeze; no untested DSP,
+Bluetooth-route or permission change. Do not claim improved noise suppression from this
+visibility/control update. Next: controlled route/noise comparison and safe processing
+lifecycle work, followed by approved correction learning/snippets improvements.
+
+Daniel explicitly replaced the reserve for this pass: hard stop at7% (2026-11-01).
+This is a session-specific exception; do not edit global usage limits or use a reset.
+
 ## Step 9 — Dictation delivery and hands-free controls (2026-11-01)
 
 Objective (Daniel): “available to copy and paste in if it missed the mark”; double-tap

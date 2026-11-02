@@ -81,6 +81,9 @@ public final class AudioCapture {
         prewarm()
     }
 
+    /// Actual engine state, including session fallback; distinct from the saved preference.
+    public var voiceProcessingActive: Bool { engine.inputNode.isVoiceProcessingEnabled }
+
     /// Human-readable current input ("MacBook Pro Microphone @ 48000 Hz") for the log.
     public var inputDescription: String {
         let fmt = engine.inputNode.inputFormat(forBus: 0)
