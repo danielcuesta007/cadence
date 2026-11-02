@@ -1,0 +1,56 @@
+{
+ "generated": "2026-11-02T09:49:01Z",
+ "model": "ggml-small.bin",
+ "env": {
+  "CADENCE_LANG": "en",
+  "CADENCE_BEAM": "5"
+ },
+ "conditions": {
+  "clean": {
+   "wer": 0.0178,
+   "errors": 4,
+   "ref_words": 225,
+   "asr_ms_mean": 681,
+   "worst": [
+    {
+     "wav": "d01.wav",
+     "wer": 0.167,
+     "hyp": "Please send the invoice to accounts payable by Friday 21."
+    },
+    {
+     "wav": "d02.wav",
+     "wer": 0.111,
+     "hyp": "I think the root causes a race condition between the audio callback and the ring buffer clear."
+    },
+    {
+     "wav": "s01.wav",
+     "wer": 0.0,
+     "hyp": "Hey, just checking in about tomorrow's meeting. Can we push it to 3.30 instead?"
+    }
+   ]
+  },
+  "babble-0db": {
+   "wer": 0.1378,
+   "errors": 31,
+   "ref_words": 225,
+   "asr_ms_mean": 723,
+   "worst": [
+    {
+     "wav": "t02.wav",
+     "wer": 0.6,
+     "hyp": "In friction, he's living the clich\u00e9 and the art of face is never written in plain text."
+    },
+    {
+     "wav": "t01.wav",
+     "wer": 0.308,
+     "hyp": "The Loan Audrey reduces latency by roughly 40% while PDM policy unchanged."
+    },
+    {
+     "wav": "d01.wav",
+     "wer": 0.25,
+     "hyp": "Please send the invoice to account payable by Friday the 23rd."
+    }
+   ]
+  }
+ }
+}

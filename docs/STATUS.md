@@ -1,6 +1,54 @@
 # STATUS — Cadence build progress
 
-Updated: 2026-11-01 · Phase: **1 (MVP spine)** · Blueprint: docs/CADENCE_BLUEPRINT.md
+Updated: 2026-11-02 · Phase: **1 (MVP spine)** · Blueprint: docs/CADENCE_BLUEPRINT.md
+
+## Step 15 — Background noise in loud rooms (2026-11-02)
+
+Objective (Daniel, verbatim): "music is always playing in my earbuds but ther was also some in
+the speaker saround me, i was in nthe cafeteria".
+
+**What the live log showed** (~/.cadence/logs/cadence.log, 560 captures): almost every capture
+is the MacBook Pro Microphone @ 44.1 kHz with voice processing off — it hears the whole room.
+There is no loopback path, so earbud music is not captured. But 121 captures (22%, incl.
+20:14–20:16 on 1 Nov) logged an opaque `CADefaultDeviceAggregate-…`: the built-in-mic pin's
+result was discarded, so the log could not say which mic was really used.
+
+**Measured (synthetic, `qa/noise-bench.sh`, ggml-small.bin, English pinned, WER):**
+
+| condition | before | filter + suppress-nst | filter + beam 5 |
+|---|---|---|---|
+| clean | 1.33% | 1.33% | 1.78% |
+| babble 10 dB | 4.89% | 4.89% | (not run) |
+| babble 5 dB | 5.78% | 5.78% | (not run) |
+| babble 0 dB | 17.78% | 17.33% | **13.78%** |
+| music 10 / 5 / 0 dB | 1.78 / 1.78 / 2.22% | (not rerun) | (not run) |
+
+Findings: **music is not the problem** (2.2% even at 0 dB); **nearby voices are** (17.8% at
+0 dB). At 0 dB whisper also captioned a whole sentence as "[indistinct chatter]" — Cadence would
+have typed that into the document. suppress-nst is a one-word change: not a lever. **Beam 5 is the only decode lever
+that moved babble** (−9 errors, ~22% relative at 0 dB) but costs one clean-audio error and
+~70% more ASR time — NOT made default; candidate for an opt-in "noisy room" mode or for
+switching on only when the room is measured loud (Daniel's call). Synthetic = ranking and
+regression only; no real-room claim. Raw: qa/noise-results-*.json.
+
+**Shipped on feat/step15-noise (65d2aab+):**
+- `InputRoute` (CadenceCapture): capture-start log names aggregate members and the pin result
+  (`pin=FAILED(status)`); the warm path re-pins the built-in mic when the route drifted, but
+  never re-hammers a pin the system refused for that same route; the menu shows the real mic
+  in plain words ("AirPods · 24 kHz · headset mic, lower quality"). `cadence selftest-capture`
+  25/25, in CI.
+- `strip_non_speech` (core/asr): sound captions ([indistinct chatter], (music), *laughs*,
+  ♪ lyrics ♪, [BLANK_AUDIO]) are never typed; real brackets ("items[0]", "(see appendix)")
+  survive. All-caption results become the existing "empty" outcome. 7/7 asr tests.
+- Bench: `qa/noise.py` (+ `qa.test_noise` 8/8, in CI), `qa/noise-fixtures.sh`,
+  `qa/noise-bench.sh`; A/B switches CADENCE_BEAM, CADENCE_SUPPRESS_NST, CADENCE_KEEP_CAPTIONS
+  (defaults unchanged). Every new test was watched failing once on a planted bug.
+
+**Not done / not claimed:** Voice Isolation (AUVoiceIO) stays experimental + off — it cannot
+be benched offline and its teardown froze the app before; needs a consented live A/B (same
+lines, quiet vs real cafeteria, VP off vs on). A background-speech gate (only the loudest,
+closest talker) is the next lever the numbers point to. Bench latency figures are inflated
+(machine load average 35–63 during runs); WER is deterministic.
 
 ## Step 14 — Versions in one place, and a multi-page site (2026-11-02)
 
@@ -183,23 +231,55 @@ create --draft` + `gh release upload` (retry on 408) + publish → PR stamps to 
 wrangler pages deploy dist --project-name cadence-dictation --branch main`. After editing
 releases.json or the shared header/footer, run `node site/pages.mjs` (tests fail on stale pages).
 
-**Build environment:** ~/cadence-single-tap has the release Swift .build and
-target/release/libcadence_ffi.a but no CMake, so the Rust core cannot be rebuilt there
-(core unchanged since 027034e). Model: ~/cadence/models/artifacts/ggml-small.bin
-(pin 1be3a9b2…; pass CADENCE_BUNDLE_MODEL). Other worktrees (capture-latency,
-dictation-controls, readiness, ~/cadence) hold uncommitted research: do not reset or stash.
+**Build environment:** worktree ~/cadence-single-tap. Build with
+`CMAKE=$HOME/cadence/tools/cmake-local/cmake-3.31.7-macos-universal/CMake.app/Contents/bin/cmake
+qa/build-shell.sh`. `.cargo/config.toml` pins MACOSX_DEPLOYMENT_TARGET=14.0 for every cargo
+build, and `qa/whisper-cache-guard.sh` drops an old whisper.cpp cache built for another macOS.
+Model: ~/cadence/models/artifacts/ggml-small.bin (pin 1be3a9b2…; pass CADENCE_BUNDLE_MODEL).
+Other worktrees (capture-latency, dictation-controls, readiness, ~/cadence) hold uncommitted
+research: do not reset or stash them.
 
-**NEXT (Step 15): background noise in loud rooms.** Daniel (verbatim): "music is always
-playing in my earbuds but ther was also some in the speaker saround me, i was in nthe
-cafeteria". Likely cause: the built-in mic (preferBuiltInMic default) hears room speakers and
-nearby voices; earbud music itself is probably not captured. Check the live route first,
-then: read ~/brain/memory/cadence-audio-asr.md and AudioCapture.swift; design a safe
-voice-processing (AUVoiceIO) start/stop lifecycle (teardown froze the app before; keep Voice
-Isolation experimental/off until proven); run consented A/B (same lines, quiet vs
-cafeteria-like noise) and measure word errors; consider VAD/energy gating against background
-speech. Never claim improved filtering without that measurement. Also pending: Daniel's real
-keyboard test of the 0.1.5 gesture; phone-width visual check of the site (Chrome window
-would not resize).
+**Steps 15 + 16 are merged to dev (PR #85, #89 → 9986bf2), NOT released; main is still
+3120677.** releases.json has 0.1.6 (11) as unreleased. 0.1.6 (11) is installed and running on
+Daniel's Mac (core ready 492 ms, model pin verified, minos 14.0, stable signer). Rollbacks:
+~/Applications/Cadence.app.pre-v016b11-20261102T095843 (0.1.6 b10) and
+~/Applications/Cadence.app.pre-v016-20261102T071257 (0.1.5 b9).
+
+## Step 16 — Noisy Room Mode, and a macOS 14 build fix (2026-11-02)
+
+- **Noisy Room Mode** (Dictation Settings → "Noisy Room Mode (Slower, Better with Voices
+  Nearby)"): off by default, can only be changed between dictations, saved as the
+  `noisy_room` feature. When it's on, the refined pass uses beam search width 5 (bench: about
+  22% fewer errors with chatter at speaker level, ~70% slower, one extra error on quiet audio).
+  The instant pass stays greedy. The overrides are applied before warm-up, so beam search is
+  warmed too. `CADENCE_BEAM` still overrides, and the log says so. The log shows
+  `noisy-room=on` on the core-ready line and records each toggle. DECISIONS #23.
+- **macOS 14 build fix:** this worktree's whisper.cpp cache had an empty deployment target. It
+  was built before the 14.0 pin and cargo never rebuilt it, so 0.1.6 (10) and earlier local
+  builds linked macOS 26.5 objects (about 1,200 linker warnings) into an app that claims 14.0.
+  Fixed at the root with `.cargo/config.toml [env]`, which was verified with a fresh build and
+  no exported variable. The guard cleans up old caches. 0.1.6 (11) builds with 0 such warnings.
+- The long-recording FFI test now allows 30 s per step (it timed out at load average ~33,
+  with or without the change).
+- Phone-width check of the site: **done**. The local build was rendered in real 320 px and
+  390 px iframes (desktop Chrome can't open a window that narrow, which explains the earlier
+  "would not resize"). Home, download, help, versions and features lay out cleanly. At 320 px
+  the header's Download pill sits off-screen in the sideways-scrolling nav row (by design);
+  the hero's "Download for Mac" button covers it.
+- Tests: Rust 124 (2 new, each watched failing on a planted bug), selftest-capture 28/28,
+  qa unittest (new `qa.test_whisper_cache_guard`, in CI), site 35/35. Reviewed by Claude
+  (8 findings, 7 fixed, 1 explained on the PR).
+
+**NEXT (Step 17):**
+1. Daniel dictates on 0.1.6 (11) somewhere loud, once with Noisy Room Mode off and once with
+   it on (same kind of room). Check ~/.cadence/logs/cadence.log: the real mic is named (no bare
+   `CADefaultDeviceAggregate`), there is no `pin=FAILED`, no "[...]"/"(music)" text was typed,
+   and the core-ready/toggle lines show which mode ran. Ask him whether on-mode felt worth the
+   wait.
+2. If that's clean and Daniel approves: release 0.1.6 (build 11) per "How releases work now".
+3. After that: a consented live A/B of Voice Isolation, or a background-speech gate (keep only
+   the loudest, closest talker). Never claim a real-room improvement without a measurement.
+Still pending: Daniel's real keyboard test of the 0.1.5 gesture.
 
 ## Favicon cleanup and public-download verification (2026-10-29)
 

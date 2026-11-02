@@ -1,0 +1,102 @@
+{
+ "generated": "2026-11-02T07:08:01Z",
+ "model": "ggml-small.bin",
+ "env": {
+  "CADENCE_LANG": "en",
+  "CADENCE_SUPPRESS_NST": "1"
+ },
+ "conditions": {
+  "clean": {
+   "wer": 0.0133,
+   "errors": 3,
+   "ref_words": 225,
+   "asr_ms_mean": 546,
+   "worst": [
+    {
+     "wav": "d01.wav",
+     "wer": 0.167,
+     "hyp": "Please send the invoice to accounts payable by Friday 21."
+    },
+    {
+     "wav": "k03.wav",
+     "wer": 0.067,
+     "hyp": "My address is 42 Wollaby Way, Apartment 7, and the postcode is 2000."
+    },
+    {
+     "wav": "s01.wav",
+     "wer": 0.0,
+     "hyp": "Hey, just checking in about tomorrow's meeting. Can we push it to 3.30 instead?"
+    }
+   ]
+  },
+  "babble-0db": {
+   "wer": 0.1733,
+   "errors": 39,
+   "ref_words": 225,
+   "asr_ms_mean": 323,
+   "worst": [
+    {
+     "wav": "f01.wav",
+     "wer": 0.917,
+     "hyp": "at Rainey Park in the lead role of platform 9 on ATV.4."
+    },
+    {
+     "wav": "t02.wav",
+     "wer": 0.6,
+     "hyp": "In friction, he's living the clich\u00e9 and the art of face is never written in plain text."
+    },
+    {
+     "wav": "k01.wav",
+     "wer": 0.333,
+     "hyp": "Admir, Erex, Salado Bread, and two avocados to the shopping list."
+    }
+   ]
+  },
+  "babble-10db": {
+   "wer": 0.0489,
+   "errors": 11,
+   "ref_words": 225,
+   "asr_ms_mean": 465,
+   "worst": [
+    {
+     "wav": "d01.wav",
+     "wer": 0.167,
+     "hyp": "Please send the invoice to accounts payable by Friday the 21st."
+    },
+    {
+     "wav": "d02.wav",
+     "wer": 0.167,
+     "hyp": "I think the route causes a race condition between the audio callback and the ring buffer clear."
+    },
+    {
+     "wav": "d03.wav",
+     "wer": 0.143,
+     "hyp": "Navigator settings, then privacy and security, then microphone, and enable access for cadence."
+    }
+   ]
+  },
+  "babble-5db": {
+   "wer": 0.0578,
+   "errors": 13,
+   "ref_words": 225,
+   "asr_ms_mean": 568,
+   "worst": [
+    {
+     "wav": "d01.wav",
+     "wer": 0.25,
+     "hyp": "Please send the invoice to account payable by Friday the 21st."
+    },
+    {
+     "wav": "d02.wav",
+     "wer": 0.167,
+     "hyp": "I think the route causes a race condition between the audio callback and the ring buffer clear."
+    },
+    {
+     "wav": "k01.wav",
+     "wer": 0.167,
+     "hyp": "At meal, eggs, sourdough bread, and two avocados to the shopping list."
+    }
+   ]
+  }
+ }
+}

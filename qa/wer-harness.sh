@@ -10,7 +10,7 @@ source ~/.cargo/env
 export CMAKE="${CMAKE:-$PWD/tools/cmake-local/cmake-3.31.7-macos-universal/CMake.app/Contents/bin/cmake}"
 
 BIN=target/release/cadence-headless
-cargo build --release -p cadence-headless --features whisper 2>/dev/null | true
+[[ -n "${WER_NO_BUILD:-}" ]] || cargo build --release -p cadence-headless --features whisper 2>/dev/null | true
 [[ -x "$BIN" ]] || { echo "build failed: $BIN missing" >&2; exit 1; }
 
 MODELS=("$@")

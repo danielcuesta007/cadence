@@ -55,6 +55,9 @@ final class CoreEngine {
     /// Personal-dictionary bias: a phrase/list of terms whisper should favor; "" clears it.
     func setVocabulary(_ terms: String) { cadence_engine_set_vocabulary(handle, terms) }
 
+    /// Noisy-room mode: beam search on the refined pass (fewer errors with voices nearby, slower).
+    func setNoisyRoom(_ on: Bool) { cadence_engine_set_noisy_room(handle, on) }
+
     func pushAudio(_ samples: [Int16], level: Float) {
         samples.withUnsafeBufferPointer {
             cadence_engine_push_audio(handle, $0.baseAddress, $0.count, level)

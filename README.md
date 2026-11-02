@@ -46,6 +46,7 @@ Settings:
   insertion still copies the text for recovery. A newer clipboard write during the paste
   transaction is preserved.
 - **Double-Tap to Start Hands-Free** (on by default): turn off for hold-only controls.
+- **Noisy Room Mode** (off by default): a more careful decode for rooms with other people talking. In testing it made about a fifth fewer mistakes with chatter as loud as you, but results take roughly 70% longer.
 - **Experimental Features → Live Insertion (Supported Fields)** (off by default): provisional
   words appear in readable, editable Accessibility fields while you speak; the final
   transcript replaces the preview once. This does not send/submit a form or press Return.
@@ -205,10 +206,12 @@ platform-macos/.build/release/cadence selftest-hotkeys   # PTT, double-tap hands
 platform-macos/.build/release/cadence selftest-delivery  # safe live previews, recovery, UTF-16 ranges
 platform-macos/.build/release/cadence selftest-lifecycle # startup, heartbeat, shutdown evidence
 platform-macos/.build/release/cadence selftest-appearance [--out dir]  # light/dark renders
+platform-macos/.build/release/cadence selftest-capture   # mic route log, built-in pin policy
 qa/wer-harness.sh                                  # word error rate + ASR latency together
+qa/noise-bench.sh <model.bin> [label]              # same, under synthetic babble/music at 10/5/0 dB
 qa/spine-selftest.sh                               # end-to-end WAV to inserted text
 (cd site && npm run build && npm test)             # website: links, CSP, honesty, checksums
-python3 -B -m unittest qa.test_make_dmg            # release disk image guards
+python3 -B -m unittest qa.test_make_dmg qa.test_noise  # disk image guards, noise mixing maths
 ```
 
 Is Start at Login really registered? Ask the installed bundle, not the menu checkmark

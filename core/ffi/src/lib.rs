@@ -22,6 +22,7 @@ use std::collections::VecDeque;
 use std::ffi::{c_char, c_void, CStr, CString};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::mpsc::{channel, Receiver, RecvTimeoutError, Sender};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
@@ -81,6 +82,9 @@ pub struct Engine {
     /// Personal-dictionary bias (whisper initial_prompt) the shell sets from the stored
     /// vocabulary. Shared with the ASR worker like `lang`; applied before each decode.
     prompt: Arc<Mutex<String>>,
+    /// Noisy-room mode (beam search on the refined pass), set from the menu. Shared with the
+    /// ASR worker like `lang`; applied before each decode, so it survives idle unload.
+    noisy_room: Arc<AtomicBool>,
 }
 
 struct OrchLoop {
@@ -296,9 +300,9 @@ fn asr_worker(
     tx: Sender<Control>,
     lang: Arc<Mutex<String>>,
     prompt: Arc<Mutex<String>>,
+    noisy_room: Arc<AtomicBool>,
 ) {
     let mut engine = Some(engine);
-    warm_engine(engine.as_mut().expect("initial engine"));
 
     // Apply the shell's runtime overrides (language + dictionary prompt) to `e`. Called before
     // every decode and after a reload so the choices survive idle unload. Empty = leave as-is.
@@ -311,8 +315,12 @@ fn asr_worker(
         if let Ok(p) = prompt.lock() {
             e.set_prompt(&p); // empty clears the bias — always apply so removals take effect
         }
+        e.set_noisy_room(noisy_room.load(Ordering::Relaxed));
     };
+    // Overrides first, so the warm-up runs the decode path the next dictation will use
+    // (noisy-room beam search included).
     apply_overrides(engine.as_mut().expect("initial engine"));
+    warm_engine(engine.as_mut().expect("initial engine"));
 
     let mut last_utt: Option<UtteranceId> = None;
     loop {
@@ -338,8 +346,8 @@ fn asr_worker(
                 let t = Instant::now();
                 match factory() {
                     Ok(mut e) => {
+                        apply_overrides(&mut e); // language, dictionary, noisy room survive unload
                         warm_engine(&mut e);
-                        apply_overrides(&mut e); // language + dictionary survive idle unload
                         debug_log(&format!("asr engine reloaded in {} ms", t.elapsed().as_millis()));
                         slot.insert(e)
                     }
@@ -431,15 +439,19 @@ impl Engine {
         let (asr_tx, asr_rx) = channel::<AsrJob>();
         let lang = Arc::new(Mutex::new(String::new()));
         let prompt = Arc::new(Mutex::new(String::new()));
+        let noisy_room = Arc::new(AtomicBool::new(false));
 
         let asr_thread = {
             let tx = tx.clone();
             let unload_after = unload_after_config();
             let lang = Arc::clone(&lang);
             let prompt = Arc::clone(&prompt);
+            let noisy_room = Arc::clone(&noisy_room);
             std::thread::Builder::new()
                 .name("cadence-asr".into())
-                .spawn(move || asr_worker(asr, factory, unload_after, asr_rx, tx, lang, prompt))
+                .spawn(move || {
+                    asr_worker(asr, factory, unload_after, asr_rx, tx, lang, prompt, noisy_room)
+                })
                 .expect("spawn asr thread")
         };
         let orch_thread = {
@@ -467,6 +479,7 @@ impl Engine {
             asr_thread: Some(asr_thread),
             lang,
             prompt,
+            noisy_room,
         }
     }
 
@@ -485,6 +498,10 @@ impl Engine {
         if let Ok(mut p) = self.prompt.lock() {
             *p = prompt.trim().to_string();
         }
+    }
+
+    fn set_noisy_room(&self, on: bool) {
+        self.noisy_room.store(on, Ordering::Relaxed);
     }
 }
 
@@ -723,6 +740,16 @@ pub unsafe extern "C" fn cadence_engine_set_language(engine: *mut Engine, lang: 
 pub unsafe extern "C" fn cadence_engine_set_vocabulary(engine: *mut Engine, terms: *const c_char) {
     with_engine!("cadence_engine_set_vocabulary", engine, {
         engine.set_prompt(&cstr_arg(terms).unwrap_or_default());
+    });
+}
+
+/// Noisy-room mode: beam search on the refined pass — fewer errors with voices nearby, at
+/// ~70 % more decode time (Step 15 bench). Off by default. Takes effect on the next refined
+/// decode; no model reload; survives idle unload.
+#[no_mangle]
+pub unsafe extern "C" fn cadence_engine_set_noisy_room(engine: *mut Engine, on: bool) {
+    with_engine!("cadence_engine_set_noisy_room", engine, {
+        engine.set_noisy_room(on);
     });
 }
 
@@ -1248,6 +1275,19 @@ mod tests {
             }
         }
 
+        /// Harness around a custom engine (and the factory an idle-unload reload would use).
+        fn with_asr(asr: Box<dyn AsrEngine + Send>, factory: AsrFactory) -> Self {
+            let (tx, rx) = mpsc::channel::<String>();
+            let tx = Box::new(tx);
+            let ctx = &*tx as *const mpsc::Sender<String> as *mut c_void;
+            let engine = Box::into_raw(Box::new(Engine::start(asr, factory, collect_cb, ctx)));
+            Self {
+                engine,
+                rx,
+                _tx: tx,
+            }
+        }
+
         /// Wait for the next effect whose `type` matches, collecting along the way.
         fn expect(&self, ty: &str) -> serde_json::Value {
             self.expect_timeout(ty, Duration::from_secs(3))
@@ -1309,9 +1349,67 @@ mod tests {
         unsafe { cadence_engine_trigger_down(h.engine, false) };
         h.expect("start_capture");
         push_chunk(&h, FINALIZE_SAMPLE_LIMIT);
+        // Minutes of audio in one push: an unoptimized build on a loaded Mac can take longer
+        // than the usual 3 s to chew through it. The test is about *whether* it finalizes.
+        let slow = Duration::from_secs(30);
+        h.expect_timeout("stop_capture", slow);
+        unsafe { cadence_engine_capture_stopped(h.engine) };
+        h.expect_timeout("run_insertion", slow);
+    }
+
+    /// Types "noisy room" or "quiet room" depending on the mode the core last applied, so a
+    /// test can see the menu flag actually reach the decoder.
+    struct NoisyProbeAsr {
+        noisy: bool,
+    }
+
+    impl AsrEngine for NoisyProbeAsr {
+        fn transcribe(&mut self, _pcm: &[f32]) -> Result<cadence_ipc::Transcript, AsrError> {
+            let refined = if self.noisy { "noisy room" } else { "quiet room" }.to_string();
+            Ok(cadence_ipc::Transcript {
+                instant: None,
+                refined,
+                language: None,
+            })
+        }
+
+        fn set_noisy_room(&mut self, on: bool) {
+            self.noisy = on;
+        }
+    }
+
+    fn probe_harness() -> Harness {
+        Harness::with_asr(
+            Box::new(NoisyProbeAsr { noisy: false }),
+            Box::new(|| Ok(Box::new(NoisyProbeAsr { noisy: false }) as _)),
+        )
+    }
+
+    fn dictate_once(h: &Harness) -> String {
+        unsafe { cadence_engine_trigger_down(h.engine, false) };
+        h.expect("start_capture");
+        push_chunk(h, 1600);
+        unsafe { cadence_engine_trigger_up(h.engine) };
         h.expect("stop_capture");
         unsafe { cadence_engine_capture_stopped(h.engine) };
-        h.expect("run_insertion");
+        let ins = h.expect("run_insertion");
+        let utt = CString::new(ins["utterance"].as_str().unwrap()).unwrap();
+        let strat = CString::new("direct").unwrap();
+        unsafe {
+            cadence_engine_insertion_result(h.engine, utt.as_ptr(), strat.as_ptr(), true, true)
+        };
+        h.expect("schedule_fade_to_idle");
+        ins["text"].as_str().unwrap().to_lowercase()
+    }
+
+    #[test]
+    fn noisy_room_toggle_reaches_the_decoder_and_back() {
+        let h = probe_harness();
+        assert!(dictate_once(&h).contains("quiet"), "default must stay greedy/quiet");
+        unsafe { cadence_engine_set_noisy_room(h.engine, true) };
+        assert!(dictate_once(&h).contains("noisy"), "menu flag never reached the decoder");
+        unsafe { cadence_engine_set_noisy_room(h.engine, false) };
+        assert!(dictate_once(&h).contains("quiet"), "turning it off did not stick");
     }
 
     #[test]
@@ -1445,20 +1543,10 @@ mod tests {
         // the orchestrator thread, racing (and eating) instant-start audio pushed right
         // after trigger_down from the caller thread (found live: 8 000 of 56 235 samples
         // lost → mangled leading words).
-        let (tx, rx) = mpsc::channel::<String>();
-        let tx = Box::new(tx);
-        let ctx = &*tx as *const mpsc::Sender<String> as *mut c_void;
-        let engine = Box::into_raw(Box::new(Engine::start(
+        let h = Harness::with_asr(
             Box::new(CountingAsr),
             Box::new(|| Ok(Box::new(CountingAsr) as _)),
-            collect_cb,
-            ctx,
-        )));
-        let h = Harness {
-            engine,
-            rx,
-            _tx: tx,
-        };
+        );
         unsafe { cadence_engine_trigger_down(h.engine, false) };
         // Push immediately — do NOT wait for the start_capture effect.
         push_chunk(&h, 1600);
