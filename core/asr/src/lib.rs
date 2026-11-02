@@ -51,6 +51,12 @@ pub trait AsrEngine {
     /// phrase/list; empty clears it. Takes effect on the next refined `transcribe`. Default
     /// no-op for engines that don't decode.
     fn set_prompt(&mut self, _prompt: &str) {}
+
+    /// Noisy-room mode (Step 16): beam search on the refined pass, which measured ~22 % fewer
+    /// errors with background voices at speaker level but ~70 % more decode time. Opt-in from
+    /// the menu; takes effect on the next refined `transcribe`. Default no-op for engines that
+    /// don't decode.
+    fn set_noisy_room(&mut self, _on: bool) {}
 }
 
 /// Deterministic mock for tests and for machines without a model present.
@@ -105,6 +111,8 @@ pub mod whisper {
         /// so proper nouns / jargon the user added decode with the right spelling. Empty = no
         /// bias. Set by the shell from the stored vocabulary.
         prompt: String,
+        /// Noisy-room mode: beam search on the refined pass (see `refined_beam`).
+        noisy_room: bool,
     }
 
     /// Encoder frames per second of audio: whisper's mel is 100 fps, and the encoder's first
@@ -154,11 +162,12 @@ pub mod whisper {
         needed.clamp(MIN_REFINED_CTX, FULL_AUDIO_CTX)
     }
 
-    /// Refined-pass sampling. Greedy by default (the measured latency/accuracy point);
-    /// `CADENCE_BEAM=<n>` (n >= 2) switches to beam search for A/B measurement on noisy audio
-    /// (Step 15, qa/noise-bench.sh). Not a shipped setting until the bench says so.
-    fn refined_strategy() -> SamplingStrategy {
-        match super::parse_beam(std::env::var("CADENCE_BEAM").ok().as_deref()) {
+    /// Refined-pass sampling. Greedy by default (the measured latency/accuracy point); the
+    /// opt-in noisy-room mode switches to beam search (see [`super::refined_beam`]), and
+    /// `CADENCE_BEAM=<n>` still overrides for A/B measurement (qa/noise-bench.sh).
+    fn refined_strategy(noisy_room: bool) -> SamplingStrategy {
+        let env = std::env::var("CADENCE_BEAM").ok();
+        match super::refined_beam(env.as_deref(), noisy_room) {
             Some(beam_size) => SamplingStrategy::BeamSearch {
                 beam_size,
                 patience: -1.0,
@@ -206,6 +215,7 @@ pub mod whisper {
                 partial_audio_ctx: 0,
                 lang: resolve_language(),
                 prompt: String::new(),
+                noisy_room: false,
             })
         }
 
@@ -256,7 +266,7 @@ pub mod whisper {
                 .ctx
                 .create_state()
                 .map_err(|e| AsrError::Engine(format!("state: {e}")))?;
-            let mut params = FullParams::new(refined_strategy());
+            let mut params = FullParams::new(refined_strategy(self.noisy_room));
             params.set_n_threads(self.threads);
             params.set_language(Some(&self.lang));
             if env_flag("CADENCE_SUPPRESS_NST") {
@@ -331,6 +341,10 @@ pub mod whisper {
 
         fn set_prompt(&mut self, prompt: &str) {
             self.prompt = prompt.trim().to_string();
+        }
+
+        fn set_noisy_room(&mut self, on: bool) {
+            self.noisy_room = on;
         }
     }
 
@@ -490,6 +504,16 @@ pub(crate) fn parse_beam(v: Option<&str>) -> Option<i32> {
     }
 }
 
+/// Beam width the noisy-room mode uses: the width qa/noise-bench.sh measured in Step 15
+/// (babble at speaker level: 17.8 % → ~13.9 % WER; one extra error on quiet audio).
+pub const NOISY_ROOM_BEAM: i32 = 5;
+
+/// Refined-pass beam width: an explicit `CADENCE_BEAM` (n >= 2) wins, for A/B measurement;
+/// otherwise noisy-room mode means [`NOISY_ROOM_BEAM`], and off means greedy (`None`).
+pub(crate) fn refined_beam(env: Option<&str>, noisy_room: bool) -> Option<i32> {
+    parse_beam(env).or(noisy_room.then_some(NOISY_ROOM_BEAM))
+}
+
 /// A/B switch value: `1`/`true`/`on` (any case) → true, everything else → false.
 pub(crate) fn parse_flag(v: Option<&str>) -> bool {
     v.map(|v| matches!(v.trim().to_lowercase().as_str(), "1" | "true" | "on"))
@@ -574,6 +598,15 @@ mod tests {
         assert_eq!(parse_beam(Some("five")), None);
         assert_eq!(parse_beam(Some(" 5 ")), Some(5));
         assert_eq!(parse_beam(Some("64")), Some(8));
+    }
+
+    #[test]
+    fn noisy_room_picks_beam_and_env_still_wins() {
+        assert_eq!(refined_beam(None, false), None, "default stays greedy");
+        assert_eq!(refined_beam(None, true), Some(NOISY_ROOM_BEAM));
+        assert_eq!(refined_beam(Some("3"), true), Some(3), "explicit A/B width wins");
+        assert_eq!(refined_beam(Some("3"), false), Some(3));
+        assert_eq!(refined_beam(Some("junk"), true), Some(NOISY_ROOM_BEAM));
     }
 
     #[test]

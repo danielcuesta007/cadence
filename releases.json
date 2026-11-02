@@ -3,14 +3,15 @@
   "releases": [
     {
       "version": "0.1.6",
-      "build": 10,
+      "build": 11,
       "date": null,
       "sha256": null,
       "title": "Clearer about your microphone in loud rooms",
       "highlights": [
         "Sound captions such as [indistinct chatter] or (music) are no longer typed into your text when a room is loud.",
         "The Cadence menu names the microphone you are really using, and says when it is a lower-quality headset mic.",
-        "If your Mac switches microphones mid-session, Cadence moves back to the built-in one before you dictate."
+        "If your Mac switches microphones mid-session, Cadence moves back to the built-in one before you dictate.",
+        "New Noisy Room Mode in Dictation Settings: fewer mistakes when other people are talking nearby, at the cost of slower results. Off by default."
       ]
     },
     {

@@ -23,9 +23,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     let desktopWidgetItem = NSMenuItem(title: "Show Desktop Widget", action: nil, keyEquivalent: "")
     var copyDictations = true
     var handsFree = true
+    var noisyRoom = false
     var liveInsertion = false
     let copyDictationsItem = NSMenuItem(title: "Keep Latest Dictation on Clipboard", action: nil, keyEquivalent: "")
     let handsFreeItem = NSMenuItem(title: "Double-Tap to Start Hands-Free", action: nil, keyEquivalent: "")
+    // Step 16: beam search for rooms with other people talking. Off by default — it measured
+    // ~22 % fewer errors with chatter at speaker level but ~70 % more decode time.
+    let noisyRoomItem = NSMenuItem(title: "Noisy Room Mode (Slower, Better with Voices Nearby)", action: nil, keyEquivalent: "")
     let inputDeviceItem = NSMenuItem(title: "Input: checking…", action: nil, keyEquivalent: "")
     let filteringStatusItem = NSMenuItem(title: "Voice filtering: checking…", action: nil, keyEquivalent: "")
     let liveInsertionItem = NSMenuItem(title: "Live Insertion (Supported Fields)", action: nil, keyEquivalent: "")
@@ -157,7 +161,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         features.addItem(filteringStatusItem)
         features.addItem(.separator())
         for (item, action) in [(copyDictationsItem, #selector(toggleCopyDictations)),
-                               (handsFreeItem, #selector(toggleHandsFree))] {
+                               (handsFreeItem, #selector(toggleHandsFree)),
+                               (noisyRoomItem, #selector(toggleNoisyRoom))] {
             item.target = self
             item.action = action
             features.addItem(item)
@@ -279,6 +284,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         verbatimMode = store?.verbatimMode ?? false
         copyDictations = store?.featureEnabled("copy_dictations", default: true) ?? true
         handsFree = store?.featureEnabled("hands_free", default: true) ?? true
+        noisyRoom = store?.featureEnabled("noisy_room", default: false) ?? false
         liveInsertion = store?.featureEnabled("live_insertion", default: false) ?? false
         router.copyDictationsEnabled = { [weak self] in self?.copyDictations ?? true }
         router.liveInsertionEnabled = { [weak self] in self?.liveInsertion ?? false }
@@ -415,6 +421,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     // Restore the personal dictionary so custom spellings survive a relaunch.
                     let vocab = Vocabulary.prompt(from: self.historyStore?.customVocabulary ?? "")
                     if !vocab.isEmpty { engine.setVocabulary(vocab) }
+                    if self.noisyRoom { engine.setNoisyRoom(true) }
                     let ms = Int(Date().timeIntervalSince(t0) * 1000)
                     let keys =
                         self.secondaryLanguage == "off"
@@ -423,7 +430,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     let model = (self.config.model as NSString).lastPathComponent
                     self.router.log(
                         "core ready in \(ms) ms (core v\(CoreEngine.coreVersion)) — "
-                            + "model=\(model) \(keys)")
+                            + "model=\(model) \(keys)"
+                            + (self.noisyRoom ? " noisy-room=on" : "") + Self.beamOverrideNote)
                     // An .en model accepts a language argument and ignores it, so a Spanish
                     // binding on an English-only build fails silently and looks like a bad
                     // model rather than a bad package. Say so once, at launch.
@@ -536,6 +544,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         handsFree.toggle()
         historyStore?.setFeature("hands_free", enabled: handsFree)
     }
+    @objc func toggleNoisyRoom() {
+        // Between utterances only, like the gesture settings: a mid-dictation flip would
+        // decode the current utterance with a mode the user didn't start it in.
+        guard router.activeState == "idle" else { return }
+        noisyRoom.toggle()
+        historyStore?.setFeature("noisy_room", enabled: noisyRoom)
+        engine?.setNoisyRoom(noisyRoom)  // next decode — no model reload
+        router.log("noisy room mode \(noisyRoom ? "on" : "off")\(Self.beamOverrideNote)")
+    }
+
+    /// `CADENCE_BEAM` (A/B runs) beats the menu in the core, so say so wherever the log names
+    /// the mode — otherwise a field log would name the wrong decoder.
+    static var beamOverrideNote: String {
+        guard let beam = ProcessInfo.processInfo.environment["CADENCE_BEAM"],
+              !beam.trimmingCharacters(in: .whitespaces).isEmpty else { return "" }
+        return " (CADENCE_BEAM=\(beam) overrides)"
+    }
     @objc func toggleLiveInsertion() {
         guard router.activeState == "idle" else { return }
         liveInsertion.toggle()
@@ -553,10 +578,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         filteringStatusItem.isEnabled = false
         copyDictationsItem.state = copyDictations ? .on : .off
         handsFreeItem.state = handsFree ? .on : .off
+        noisyRoomItem.state = noisyRoom ? .on : .off
         liveInsertionItem.state = liveInsertion ? .on : .off
         // Gesture and preview settings take effect between utterances.
         handsFreeItem.isEnabled = router.activeState == "idle"
         liveInsertionItem.isEnabled = router.activeState == "idle"
+        noisyRoomItem.isEnabled = router.activeState == "idle"
         desktopWidgetItem.state = desktopWidget.enabled ? .on : .off
         let front = NSWorkspace.shared.frontmostApplication?.localizedName
         menuFrontApp = front

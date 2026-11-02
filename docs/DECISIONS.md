@@ -83,3 +83,9 @@ Format: date · decision · why · reversibility. Larger decisions get an ADR in
     ASR time, so greedy stays the default; beam/suppress-nst remain env A/B switches only. Voice
     Isolation stays experimental/off until a consented live A/B proves it (and its teardown).
     The capture log/menu now name the real mic behind aggregates and the pin result.
+23. **Noisy Room Mode = opt-in beam 5** (Step 16, 2026-11-02) — the one lever the Step 15
+    bench showed helping with nearby voices (babble 0 dB ~-22% errors) ships as a Dictation
+    Settings toggle (`noisy_room` feature, default OFF), not a default: it costs ~70% refined
+    decode time and one extra error on quiet audio. Refined pass only; the instant pass stays
+    greedy. `CADENCE_BEAM` still overrides for A/B. Real-room benefit is unmeasured until
+    Daniel uses it in a loud room; don't claim more than the bench shows.

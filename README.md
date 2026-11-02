@@ -46,6 +46,7 @@ Settings:
   insertion still copies the text for recovery. A newer clipboard write during the paste
   transaction is preserved.
 - **Double-Tap to Start Hands-Free** (on by default): turn off for hold-only controls.
+- **Noisy Room Mode** (off by default): a more careful decode for rooms with other people talking. In testing it made about a fifth fewer mistakes with chatter as loud as you, but results take roughly 70% longer.
 - **Experimental Features → Live Insertion (Supported Fields)** (off by default): provisional
   words appear in readable, editable Accessibility fields while you speak; the final
   transcript replaces the preview once. This does not send/submit a form or press Return.
