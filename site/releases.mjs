@@ -1,12 +1,11 @@
 // Renders the site's version details from ../releases.json, the one list of Cadence versions.
-//   node releases.mjs stamp <ver> <sha> [day] record a built release, then rewrite the pages
-//   (qa/make-dmg.sh calls this; pages.mjs does the page rewriting for every build)
+// Recording a built release is `node pages.mjs stamp <ver> <sha> [day]` (qa/make-dmg.sh).
 // Generated blocks sit between <!-- releases:NAME --> and <!-- /releases:NAME --> markers, so
 // the pages stay plain static HTML (the site's CSP allows no runtime fetches) and a stale
 // page is a test failure, not a silent drift.
 import { readFile, writeFile } from 'node:fs/promises';
 
-const JSON_URL = new URL('../releases.json', import.meta.url);
+export const JSON_URL = new URL('../releases.json', import.meta.url);
 const REPO = 'https://github.com/danieljcuesta007/cadence';
 
 export async function load() { return JSON.parse(await readFile(JSON_URL, 'utf8')); }
@@ -90,17 +89,4 @@ export function stamp(data, version, sha, day) {
   top.date = day;
   validate(data);
   return data;
-}
-
-if (import.meta.url === `file://${process.argv[1]}`) {
-  const [cmd, version, sha, day] = process.argv.slice(2);
-  if (cmd !== 'stamp') {
-    console.error('usage: node releases.mjs stamp <version> <sha256> [YYYY-MM-DD]');
-    process.exit(2);
-  }
-  const today = new Date();
-  const d = day || `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-  const data = stamp(await load(), version, sha, d);
-  await writeFile(JSON_URL, JSON.stringify(data, null, 2) + '\n');
-  await (await import('./pages.mjs')).sync();
 }

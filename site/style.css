@@ -218,6 +218,7 @@ pre { background:var(--paper); border:2px dashed var(--line); border-radius:12px
 .page-head { padding-bottom:clamp(8px,2vw,24px) !important; }
 .page-head h1 { font:700 clamp(40px,6vw,76px)/1 var(--serif); letter-spacing:-.03em; text-wrap:balance; }
 .page-head .lede { margin-bottom:0; }
+.page-head + section { padding-top:clamp(20px,3vw,36px); }
 .page-head .lede a { color:var(--blue); }
 
 /* Home: steps footnote, why cards, get band */

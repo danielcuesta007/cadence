@@ -2,6 +2,27 @@
 
 Updated: 2026-11-01 · Phase: **1 (MVP spine)** · Blueprint: docs/CADENCE_BLUEPRINT.md
 
+## Step 14 — Versions in one place, and a multi-page site (2026-11-02)
+
+Objective (Daniel, verbatim): "make sure all verisons are super eaisly managelbe, add a verison
+history timelien on the site, instead of making it one long scrooable page, lets make the
+wbsite oages itelsf, PLEASe aduit nad irmpvoe the whoel experince".
+
+releases.json (repo root) is the ONE version list, newest first. qa/package-app.sh reads the
+app version/build from its first entry; qa/make-dmg.sh refuses any other version and, after
+building, stamps that entry's sha256/date (`node site/pages.mjs stamp`), the cask and
+install.sh, and regenerates the site. The site is now 7 pages (home, features, download,
+versions, help, about, legal); site/pages.mjs writes the shared header/footer and the
+release blocks (timeline, latest line, checksum) on every build, so nothing can go stale.
+Phones keep the page links as a scrollable row (they used to be hidden). New: controls
+table, update/rollback/remove section, troubleshooting (including noisy rooms, honestly
+marked as being worked on).
+
+Verified: site tests 33/33 (shared layout, freshness against releases.json, validation of
+bad lists, stamping), qa 19/19 (make-dmg with releases.json, version default, wrong app
+version refused); checked in Chrome on desktop. Not checked: real phone width (the window
+would not resize).
+
 ## Step 13 — Even more forgiving hands-free, and tap-then-hold (2026-11-01)
 
 Objective (Daniel, verbatim): "the double tap shoudl be even mor eforgiving pls and hsoiudl

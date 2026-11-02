@@ -1,6 +1,7 @@
 """qa/make-dmg.sh against a tiny fake app: it must refuse a wrong model, missing
 licenses or a broken signature, and on success write the checksum to the cask and site."""
 import hashlib
+import json
 import shutil
 import subprocess
 import tempfile
@@ -13,9 +14,16 @@ ROOT = Path(__file__).resolve().parents[1]
 class MakeDmgTests(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp(prefix='cadence-dmg-')).resolve()
-        for rel in ('qa/make-dmg.sh', 'Casks/cadence.rb', 'site/index.html', 'site/install.sh', 'LICENSE', 'THIRD_PARTY_NOTICES.md'):
+        site = ['site/' + p.name for p in (ROOT / 'site').glob('*.html')] + ['site/pages.mjs', 'site/releases.mjs']
+        for rel in ['qa/make-dmg.sh', 'Casks/cadence.rb', 'site/install.sh', 'LICENSE', 'THIRD_PARTY_NOTICES.md', *site]:
             (self.tmp / rel).parent.mkdir(parents=True, exist_ok=True)
             shutil.copy(ROOT / rel, self.tmp / rel)
+        # A release list whose top entry is the fake app's version, not yet released.
+        data = json.loads((ROOT / 'releases.json').read_text())
+        old = next(r for r in data['releases'] if r['date'])
+        data['releases'] = [{'version': '9.9.9', 'build': old['build'] + 100, 'date': None, 'sha256': None,
+                             'title': 'Test', 'highlights': ['test']}, old]
+        (self.tmp / 'releases.json').write_text(json.dumps(data, indent=2) + '\n')
         model = b'fake multilingual model'
         (self.tmp / 'models').mkdir()
         (self.tmp / 'models/fetch-models.sh').write_text(
@@ -48,7 +56,11 @@ class MakeDmgTests(unittest.TestCase):
         cask = (self.tmp / 'Casks/cadence.rb').read_text()
         self.assertIn(f'sha256 "{sha}"', cask)
         self.assertIn('version "9.9.9"', cask)
-        self.assertIn(f'<code data-sha>{sha}</code>', (self.tmp / 'site/index.html').read_text())
+        self.assertIn(f'<code data-sha>{sha}</code>', (self.tmp / 'site/download.html').read_text())
+        top = json.loads((self.tmp / 'releases.json').read_text())['releases'][0]
+        self.assertEqual((top['version'], top['sha256']), ('9.9.9', sha))
+        self.assertRegex(top['date'], r'^\d{4}-\d{2}-\d{2}$')
+        self.assertIn('id="v9-9-9"', (self.tmp / 'site/versions.html').read_text())
         installer = (self.tmp / 'site/install.sh').read_text()
         self.assertIn(f'SHA256="{sha}"\n', installer)
         self.assertIn('VERSION="9.9.9"\n', installer)
@@ -65,11 +77,24 @@ class MakeDmgTests(unittest.TestCase):
         cask = (self.tmp / 'Casks/cadence.rb').read_text()
         result = subprocess.run(['bash', 'qa/make-dmg.sh', '9.9.8'], cwd=self.tmp, capture_output=True, text=True, timeout=300)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("the app says version '9.9.9'", result.stderr)
+        self.assertIn('releases.json starts with 9.9.9, not 9.9.8', result.stderr)
         bad = subprocess.run(['bash', 'qa/make-dmg.sh', 'v9.9.9'], cwd=self.tmp, capture_output=True, text=True, timeout=300)
         self.assertNotEqual(bad.returncode, 0)
         self.assertIn('no leading v', bad.stderr)
         self.assertEqual((self.tmp / 'Casks/cadence.rb').read_text(), cask)  # a refused run leaves the cask alone
+
+    def test_version_defaults_to_releases_json(self):
+        result = subprocess.run(['bash', 'qa/make-dmg.sh'], cwd=self.tmp, capture_output=True, text=True, timeout=300)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('version "9.9.9"', (self.tmp / 'Casks/cadence.rb').read_text())
+
+    def test_refuses_an_app_built_for_another_version(self):
+        plist = self.app / 'Contents/Info.plist'
+        plist.write_text(plist.read_text().replace('9.9.9', '9.9.7'))
+        self.sign()
+        result = self.run_script()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("the app says version '9.9.7'", result.stderr)
 
     def test_refuses_without_licenses(self):
         (self.app / 'Contents/Resources/THIRD_PARTY_NOTICES.md').unlink()

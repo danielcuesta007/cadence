@@ -12,7 +12,7 @@ TOP=$(plutil -extract releases.0.version raw -o - releases.json 2>/dev/null) || 
 VERSION="${1:-$TOP}"
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "make-dmg: version must look like 0.1.0 (no leading v)" >&2; exit 1; }
 [[ "$VERSION" == "$TOP" ]] || { echo "make-dmg: releases.json starts with $TOP, not $VERSION; add $VERSION at the top of releases.json first" >&2; exit 1; }
-command -v node >/dev/null 2>&1 || { echo "make-dmg: needs node to update the site's version pages (site/releases.mjs)" >&2; exit 1; }
+command -v node >/dev/null 2>&1 || { echo "make-dmg: needs node to update the site's version pages (site/pages.mjs)" >&2; exit 1; }
 APP=dist/Cadence.app
 DMG=dist/Cadence.dmg
 
@@ -65,7 +65,7 @@ SHA=$(shasum -a 256 "$DMG" | cut -d' ' -f1)
 
 sed -i '' -e "s|^  version \".*\"|  version \"$VERSION\"|" -e "s|^  sha256 \".*\"|  sha256 \"$SHA\"|" Casks/cadence.rb
 sed -i '' -e "s|^VERSION=\".*\"|VERSION=\"$VERSION\"|" -e "s|^SHA256=\".*\"|SHA256=\"$SHA\"|" site/install.sh
-node site/releases.mjs stamp "$VERSION" "$SHA" "${CADENCE_RELEASE_DATE:-}"
+node site/pages.mjs stamp "$VERSION" "$SHA" "${CADENCE_RELEASE_DATE:-}"
 
 cat <<MSG
 Built $DMG ($(du -h "$DMG" | cut -f1))

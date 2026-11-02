@@ -3,7 +3,7 @@
 // the current page marked) plus the release blocks from ../releases.json. build.mjs runs it,
 // so a page can never drift from the others or from the version list.
 import { readFile, writeFile } from 'node:fs/promises';
-import { BLOCKS, fill, load, validate } from './releases.mjs';
+import { BLOCKS, JSON_URL, fill, load, stamp, validate } from './releases.mjs';
 
 export const PAGES = ['index.html', 'features.html', 'download.html', 'versions.html', 'help.html', 'about.html', 'legal.html'];
 const NAV = [['features.html', 'Features'], ['versions.html', 'Versions'], ['help.html', 'Help'], ['about.html', 'About']];
@@ -63,4 +63,17 @@ export async function sync() {
   for (const [file, html] of Object.entries(pages)) await writeFile(new URL(file, import.meta.url), html);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) await sync();
+//   node pages.mjs                             rewrite every page's shared and release blocks
+//   node pages.mjs stamp <ver> <sha> [day]      record a built release in releases.json first
+if (import.meta.url === `file://${process.argv[1]}`) {
+  const [cmd, version, sha, day] = process.argv.slice(2);
+  if (cmd === 'stamp') {
+    const t = new Date();
+    const d = day || `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+    await writeFile(JSON_URL, JSON.stringify(stamp(await load(), version, sha, d), null, 2) + '\n');
+  } else if (cmd) {
+    console.error('usage: node pages.mjs [stamp <version> <sha256> [YYYY-MM-DD]]');
+    process.exit(2);
+  }
+  await sync();
+}
