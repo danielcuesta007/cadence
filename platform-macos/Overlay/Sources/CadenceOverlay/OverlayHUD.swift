@@ -20,10 +20,24 @@ public final class OverlayHUD {
     private let chipLabel = NSTextField(labelWithString: "")
     private var fadeWork: DispatchWorkItem?
     private var handsFree = false
+    private var tapPending = false
+    public static func listeningGlyph(handsFree: Bool, tapPending: Bool) -> String {
+        if handsFree { return "● hands-free · tap to finish" }
+        if tapPending { return "● listening · tap again for hands-free" }
+        return "● listening"
+    }
     public func setHandsFree(_ on: Bool) {
         handsFree = on
+        if on { tapPending = false }
+        refreshListeningGlyph()
+    }
+    public func setTapPending(_ on: Bool) {
+        tapPending = on
+        refreshListeningGlyph()
+    }
+    private func refreshListeningGlyph() {
         if !levelLabel.isHidden {
-            glyphLabel.stringValue = on ? "● hands-free · tap to finish" : "● listening"
+            glyphLabel.stringValue = Self.listeningGlyph(handsFree: handsFree, tapPending: tapPending)
             fitAndPosition()
         }
     }
@@ -108,7 +122,7 @@ public final class OverlayHUD {
         fadeWork = nil
         let glyph: String
         switch state {
-        case "listening": glyph = handsFree ? "● hands-free · tap to finish" : "● listening"
+        case "listening": glyph = Self.listeningGlyph(handsFree: handsFree, tapPending: tapPending)
         case "thinking": glyph = "✦ thinking"
         case "inserting": glyph = "↳ inserting"
         case "done": glyph = "✓ done"

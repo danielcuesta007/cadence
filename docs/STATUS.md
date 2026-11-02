@@ -2,6 +2,26 @@
 
 Updated: 2026-11-01 · Phase: **1 (MVP spine)** · Blueprint: docs/CADENCE_BLUEPRINT.md
 
+## Step 11 — Forgiving hands-free double-tap (2026-11-01)
+
+Objective (Daniel): double-tapping Option "requires overly precise timing"; hesitant users
+should still start hands-free. Fix: PTTArbiter's single 0.3 s `tapWindow` (used for BOTH
+tap length and the pause between taps) is split into `PTTTiming.maxTapDuration` 0.35 s and
+`interTapGap`, which follows macOS double-click speed clamped 0.4–0.8 s (0.5 s default).
+Only the pause is generous: holds still start and stop immediately; a lone short tap
+stops when the gap runs out. Second press counts strictly before the deadline, matching
+`expire`. Pill shows "listening · tap again for hands-free" while a first tap is pending.
+Unchanged: owner-key ownership, foreign key ignored, chord/typing retraction, Escape,
+single-tap finish, no Return on finish.
+
+Verified: hotkeys 110/110 (36 new: hesitant gaps, both sides of gap and tap-length
+boundaries, long second press, foreign key in gap, Option typing/chords, Escape in gap,
+no duplicate finish, ordinary hold, pill wording); planting the old conflated window fails
+9 of them. Delivery 20/20, insertion pass, qa 11/11, release Swift build. Not yet
+installed into ~/Applications; physical feel on the keyboard is Daniel's acceptance.
+Known limit: a press after the gap while the previous lone tap is still transcribing is
+rejected as busy (unchanged; longer gap makes it rarer).
+
 ## Step 10 — Single-tap finish and microphone visibility (2026-11-01)
 
 Daniel requested double-tap START / single-tap FINISH for long hands-free dictation,
@@ -81,7 +101,14 @@ v0.1.3 download, app branding and widget instructions remain current.
 
 ## Handoff
 
-_No active handoff._
+Step10 local app update installed2026-11-01: version0.1.4(7), source742e224e03ac008e052b1b725653d2d6840734f9, branchfix/single-tap-finish in ~/cadence-single-tap. Double-tap START / single owner-key tap FINISH; menu version and actual input/voice-filtering labels added. Optimized build + hotkeys74/74, delivery20/20, insertion9/9, packaging5/5; single-tap test failed before fix. Codex implementation-session review posted on PR75 (not independent second review); feature CI pending. PR75→dev, then reviewed dev→main merge still required. No public DMG/tag/site release.
+
+Installed doctor: engine/hotkeys ready, mic/AX authorized, login enabled; version0.1.4(7), PID16073 at verification. Same signing requirement and model; backup ~/Applications/Cadence.app.pre-v014-20261101T184749. Install/doctor receipts in ~/cadence-single-tap/dist/{controls-install-receipt.json,doctor.json}. Older diagnostic backups remain untouched.
+
+Noise suppression remains OPEN and unchanged. Asked Daniel whether music is in earbuds/headphones, Mac speakers or external speakers; answer pending. Actual prior logs show Mac microphone and processing inactive; do not claim improved filtering. Next: compare recording/playback route and consented quiet/music tests, then safe lifecycle/noise work; preserve experimental defaultOFF given prior AUVoiceIO freeze. Correction learning/snippets remain later approved direction.
+
+Daniel explicitly authorizes a temporary7% hard stop this pass; checkpoint and stop at7% for either active quota; no reset/limit changes. Last fresh meter10%weekly/12%five-hour (historical, recheck).
+
 
 ## Favicon cleanup and public-download verification (2026-10-29)
 
@@ -769,3 +796,27 @@ Refreshed 2026-07-25 from 9 days of live logs + the §30 harness on the **bundle
    feel (thinking is ~250-450 ms now); AirPods route change; Keep Audio Recordings blob
    write; Start at Login across a reboot.
 5. Windows environment → port insertion spike + this FFI (header already C-clean).
+
+## HARD STOP receipt — 2026-11-01
+
+Stopped immediately on fresh dashboard five-hour5%, weekly9%. Previous fresh read was
+five-hour9%, weekly10%; the next read crossed the user-authorized7% stop before it was
+observed. Do not claim an exact7% stop. No reset, credit purchase or limit change.
+Read-only PR75 CI watcher stopped; no automatic merge is queued.
+
+Installed app0.1.4(7) IS running and verified, source742e224 in~/cadence-single-tap.
+Single-tap finish, input/filter status and visible version are live. Hotkeys74/delivery20/
+insertion9/packaging5 and optimized build pass; rollback preserved. PR75 pushed/reviewed,
+last observed native CI still pending. Last attempted conditional merge exited on pending
+checks; NO Step10 merge todev/main or release PR is claimed. Do not infer later CI state.
+UPDATE (Claude, later 2026-11-01): PR75 CI was green (cargo-test, site-and-release);
+squash-merged to dev as baa6d5f, feature branch deleted. Step 11 continues on
+fix/forgiving-double-tap.
+
+NEXT after allowance permits: check actualPR75 CI, squash merge/delete feature if green;
+create dev→main release PR listing#75, post Codex review, awaitCI, merge without deletingdev.
+Keep local STATUS checkpoints and research notes. Then investigate music/noise route
+(answer to earbuds/headphones vs speakers still pending), safe processing lifecycle and
+consented quiet/music benchmark. Noise suppression itself remains unchanged/unfixed.
+Full receipt~/cadence-single-tap/dist/controls-install-receipt.json and doctor.json.
+Normal reserve is10%;7% was Daniel's explicit exception for this pass.
