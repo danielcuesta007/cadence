@@ -55,7 +55,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var verbatimMode = false
     let verbatimItem = NSMenuItem(title: "Verbatim (No Cleanup)", action: nil, keyEquivalent: "v")
     let builtInMicItem = NSMenuItem(
-        title: "Use Built-in Microphone", action: nil, keyEquivalent: "")
+        title: "Always Use Built-in Microphone", action: nil, keyEquivalent: "")
     let voiceIsolationItem = NSMenuItem(
         title: "Voice Isolation (Experimental)", action: nil, keyEquivalent: "")
     let retentionItem = NSMenuItem(title: "Keep History", action: nil, keyEquivalent: "")
@@ -297,7 +297,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self?.router.log("appearance → \(choice.rawValue)")
         }
         router.retainAudioEnabled = { [weak self] in self?.retainAudio ?? false }
-        capture.preferBuiltInMic = store?.preferBuiltInMic ?? true
+        capture.preferBuiltInMic = store?.preferBuiltInMic ?? false
         capture.voiceIsolation = store?.voiceIsolation ?? true
         router.engine = { [weak self] in self?.engine }
         router.statusUpdate = { [weak self] state in
@@ -706,7 +706,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let on = !capture.preferBuiltInMic
         capture.setPreferBuiltInMic(on)
         historyStore?.setPreferBuiltInMic(on)
-        router.log("built-in mic preference → \(on ? "on" : "off (system default input)")")
+        router.log("always built-in mic → \(on ? "on" : "off (headset mic when connected)")")
     }
 
     @objc func toggleVoiceIsolation() {

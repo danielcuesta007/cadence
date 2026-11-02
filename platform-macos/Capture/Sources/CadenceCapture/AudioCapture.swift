@@ -47,11 +47,11 @@ public final class AudioCapture {
     /// (no-lost-words), but nothing arrives once the engine is stopped.
     public var onChunk: (([Int16], Float) -> Void)?
 
-    /// Prefer the built-in mic over the system default input (default ON). Bluetooth
-    /// headsets as input mean telephony-mode audio — muffled 16 kHz HFP that whisper
-    /// mangles — AND the user's music drops to the same codec. The Mac's mic array beats
-    /// both; in-ear playback can't leak into it either.
-    public var preferBuiltInMic = true
+    /// Always use the built-in mic (default OFF since 2 Nov 2026). Off, capture pins a
+    /// connected headset mic (AirPods, USB headset) — the mic at your mouth wins in a loud
+    /// room — at the cost of telephony-mode (HFP) audio: music in the earbuds drops to call
+    /// quality while dictating. On restores the old built-in-only behaviour.
+    public var preferBuiltInMic = false
 
     /// Apple voice processing on the input (AEC + noise suppression — the "Voice
     /// Isolation" machinery; default OFF, experimental). Enabling helps café/office
@@ -66,12 +66,20 @@ public final class AudioCapture {
     /// Device that was current when the system last refused the pin: not retried for that
     /// same route on every key press (see RoutePolicy.needsRepin).
     private var pinRefusedFor: AudioDeviceID?
-    /// Built-in mic id, looked up once per route (cold path / route change), never per key press.
-    private var builtInCache: AudioDeviceID??
+    /// The mic to pin (RoutePolicy.pinTarget), looked up once per route (cold path, route or
+    /// device-list change), never per key press. nil inside = follow the system default.
+    private var targetCache: AudioDeviceID??
+    /// The device capture pinned explicitly, so un-pinning (headset gone) can hand the unit
+    /// back to the system default instead of leaving it on a vanished device. Kept until the
+    /// hand-back verifiably succeeds, so a failed hand-back is retried.
+    private var pinnedDevice: AudioDeviceID?
+    /// CoreAudio device-list listener: earbuds connecting/disconnecting re-pick the mic.
+    private var deviceListListener: AudioObjectPropertyListenerBlock?
 
     public func setPreferBuiltInMic(_ on: Bool) {
         guard on != preferBuiltInMic else { return }
         preferBuiltInMic = on
+        targetCache = nil  // mid-capture too: the next start() re-picks and re-pins
         applyConfigChange()
     }
 
@@ -103,13 +111,14 @@ public final class AudioCapture {
             // An aggregate lists every member that HAS input streams (output-only AirPods
             // included), not the one it takes input from. When the built-in is a member, it is
             // the one capture selected (pin / voice processing), so report just it.
-            if let b = builtIn(), ids.contains(b) { ids = [b] }
+            // Cached pick, else the default input: one property read, no device scan per press.
+            if let t = pinTarget() ?? Self.defaultInputDevice(), ids.contains(t) { ids = [t] }
             members = ids.map(Self.memberLabel)
         }
         return InputRoute(
             deviceName: name, aggregateInputs: members, sampleRate: Int(fmt.sampleRate),
             voiceProcessing: engine.inputNode.isVoiceProcessingEnabled,
-            pin: preferBuiltInMic ? pinState : .off)
+            pin: pinState)
     }
 
     /// Log form, e.g. "MacBook Pro Microphone @ 44100 Hz".
@@ -134,31 +143,47 @@ public final class AudioCapture {
         return members.isEmpty ? [dev] : members
     }
 
-    private func builtIn() -> AudioDeviceID? {
-        if let cached = builtInCache { return cached }
-        let found = Self.builtInInputDevice()
-        builtInCache = .some(found)
+    private func pinTarget() -> AudioDeviceID? {
+        if let cached = targetCache { return cached }
+        let found = Self.pick(preferBuiltIn: preferBuiltInMic)
+        targetCache = .some(found)
         return found
     }
 
-    /// Point capture at the built-in mic when preferred; records the outcome in pinState.
-    /// Called on the cold path only (tap rebuild), so the device scan is not per key press.
+    private func setUnitDevice(_ device: AudioDeviceID) -> OSStatus {
+        guard let unit = engine.inputNode.audioUnit else { return -1 }
+        var id = device
+        return AudioUnitSetProperty(
+            unit, kAudioOutputUnitProperty_CurrentDevice, kAudioUnitScope_Global, 0,
+            &id, UInt32(MemoryLayout<AudioDeviceID>.size))
+    }
+
+    /// Point capture at the chosen mic (RoutePolicy.pinTarget); records the outcome in
+    /// pinState. Called on the cold path only (tap rebuild), so the device scan is not per
+    /// key press.
     private func applyPin() {
-        guard preferBuiltInMic else { pinState = .off; return }
-        builtInCache = nil // cold path: the device list may have changed
-        guard let builtIn = builtIn() else { pinState = .noBuiltIn; return }
-        if currentInputs().contains(builtIn) {
+        targetCache = nil // cold path: the device list may have changed
+        guard let target = pinTarget() else {
+            pinState = preferBuiltInMic ? .noBuiltIn : .off
+            pinRefusedFor = nil
+            // A headset we pinned went away: hand the unit back to the system default rather
+            // than leave it bound to a device that no longer exists. Only forget the pin once
+            // the default is a different device and the set reads back; otherwise retry later.
+            if let pinned = pinnedDevice, let def = Self.defaultInputDevice(), def != pinned,
+                setUnitDevice(def) == noErr, currentInputs().contains(def) {
+                pinnedDevice = nil
+            }
+            return
+        }
+        if currentInputs().contains(target) {
             pinState = .held
             pinRefusedFor = nil
             return
         }
-        guard let unit = engine.inputNode.audioUnit else { pinState = .failed(-1); return }
-        var id = builtIn
-        let status = AudioUnitSetProperty(
-            unit, kAudioOutputUnitProperty_CurrentDevice, kAudioUnitScope_Global, 0,
-            &id, UInt32(MemoryLayout<AudioDeviceID>.size))
+        let status = setUnitDevice(target)
+        pinnedDevice = target
         pinState = RoutePolicy.pinResult(
-            setStatus: status, builtIn: builtIn, readBackInputs: currentInputs())
+            setStatus: status, target: target, readBackInputs: currentInputs())
         // Key the refusal on the route as it stands AFTER the attempt — that is what the warm
         // path compares against (0 = unreadable), so a refused route is not retried per press.
         if case .failed = pinState { pinRefusedFor = currentDevice() ?? 0 } else { pinRefusedFor = nil }
@@ -224,50 +249,100 @@ public final class AudioCapture {
         return "\(deviceName(id) ?? "device \(id)") (\(transport))"
     }
 
-    /// The built-in input device (transport type built-in, has input streams), or nil
-    /// (clamshell-less Macs, hypothetical headless boxes) — callers fall back to default.
-    private static func builtInInputDevice() -> AudioDeviceID? {
+    private let listenerQueue = DispatchQueue(label: "cadence.capture.devices", qos: .utility)
+
+    private static func pick(preferBuiltIn: Bool) -> AudioDeviceID? {
+        RoutePolicy.pinTarget(
+            preferBuiltIn: preferBuiltIn, devices: inputCandidates(),
+            defaultInput: defaultInputDevice())
+    }
+
+    /// Every device with input streams, with its transport, in CoreAudio's order.
+    private static func inputCandidates() -> [InputCandidate] {
+        allDeviceIDs().compactMap { id in
+            guard hasInputStreams(id),
+                let transport = uint32Property(id, kAudioDevicePropertyTransportType)
+            else { return nil }
+            return InputCandidate(id: id, transport: transport)
+        }
+    }
+
+    private static func allDeviceIDs() -> [AudioDeviceID] {
         var addr = AudioObjectPropertyAddress(
             mSelector: kAudioHardwarePropertyDevices,
             mScope: kAudioObjectPropertyScopeGlobal,
             mElement: kAudioObjectPropertyElementMain)
         var size: UInt32 = 0
         let sys = AudioObjectID(kAudioObjectSystemObject)
-        guard AudioObjectGetPropertyDataSize(sys, &addr, 0, nil, &size) == noErr else {
-            return nil
-        }
+        guard AudioObjectGetPropertyDataSize(sys, &addr, 0, nil, &size) == noErr else { return [] }
         var ids = [AudioDeviceID](
             repeating: 0, count: Int(size) / MemoryLayout<AudioDeviceID>.size)
-        guard AudioObjectGetPropertyData(sys, &addr, 0, nil, &size, &ids) == noErr else {
-            return nil
+        guard AudioObjectGetPropertyData(sys, &addr, 0, nil, &size, &ids) == noErr else { return [] }
+        return ids
+    }
+
+    private static func defaultInputDevice() -> AudioDeviceID? {
+        let v = uint32Property(
+            AudioObjectID(kAudioObjectSystemObject), kAudioHardwarePropertyDefaultInputDevice)
+        return (v ?? 0) == 0 ? nil : v
+    }
+
+    /// Re-pick the mic when devices come and go (earbuds in/out). The engine's own
+    /// config-change notification only fires when ITS device changes — a pinned engine never
+    /// hears AirPods connecting. Debounced onto the same rebuild as a route change.
+    private func installDeviceListListener() {
+        guard deviceListListener == nil else { return }
+        var addr = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDevices,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain)
+        // Runs on a utility queue: CoreAudio adds/removes hidden aggregate devices around
+        // every capture, and the device scan must not compete with capture start on main.
+        // Those aggregates are never candidates, so only a real change of pick (earbuds
+        // in/out) rebuilds — otherwise each dictation would tear down the warm tap.
+        let block: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
+            guard let self else { return }
+            let builtInOnly = DispatchQueue.main.sync { self.preferBuiltInMic }
+            let fresh = Self.pick(preferBuiltIn: builtInOnly)
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                if case .some(let cached) = self.targetCache, cached == fresh { return }
+                self.scheduleRouteRebuild()
+            }
         }
-        for id in ids {
-            var taddr = AudioObjectPropertyAddress(
-                mSelector: kAudioDevicePropertyTransportType,
-                mScope: kAudioObjectPropertyScopeGlobal,
-                mElement: kAudioObjectPropertyElementMain)
-            var transport: UInt32 = 0
-            var tsize = UInt32(MemoryLayout<UInt32>.size)
-            guard AudioObjectGetPropertyData(id, &taddr, 0, nil, &tsize, &transport) == noErr,
-                transport == kAudioDeviceTransportTypeBuiltIn
-            else { continue }
-            var saddr = AudioObjectPropertyAddress(
-                mSelector: kAudioDevicePropertyStreams,
-                mScope: kAudioDevicePropertyScopeInput,
-                mElement: kAudioObjectPropertyElementMain)
-            var ssize: UInt32 = 0
-            guard AudioObjectGetPropertyDataSize(id, &saddr, 0, nil, &ssize) == noErr,
-                ssize > 0
-            else { continue }
-            return id
+        if AudioObjectAddPropertyListenerBlock(
+            AudioObjectID(kAudioObjectSystemObject), &addr, listenerQueue, block) == noErr {
+            deviceListListener = block
         }
-        return nil
+    }
+
+    /// Debounced rebuild against the current route (main queue). Mid-capture it only drops
+    /// the cached pick: the next start()'s drift check re-pins.
+    private func scheduleRouteRebuild() {
+        targetCache = nil
+        rebuildWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, !self.running else { return }
+            self.targetCache = nil
+            self.teardownTap()
+            self.prewarm()
+        }
+        rebuildWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: work)
     }
 
     public init() {}
 
     deinit {
         if let o = routeChangeObserver { NotificationCenter.default.removeObserver(o) }
+        if let block = deviceListListener {
+            var addr = AudioObjectPropertyAddress(
+                mSelector: kAudioHardwarePropertyDevices,
+                mScope: kAudioObjectPropertyScopeGlobal,
+                mElement: kAudioObjectPropertyElementMain)
+            AudioObjectRemovePropertyListenerBlock(
+                AudioObjectID(kAudioObjectSystemObject), &addr, listenerQueue, block)
+        }
     }
 
     public static func micAuthorized() -> Bool {
@@ -340,7 +415,8 @@ public final class AudioCapture {
         tapFormat = nil
         pinState = .pending
         pinRefusedFor = nil
-        builtInCache = nil
+        targetCache = nil
+        pinnedDevice = nil
         engine = AVAudioEngine()
         DispatchQueue.global(qos: .utility).async {
             old.stop()
@@ -368,7 +444,7 @@ public final class AudioCapture {
             // that landed mid-debounce) leaves a tap bound to the old sample rate.
             let current = engine.inputNode.inputFormat(forBus: 0)
             let drifted = RoutePolicy.needsRepin(
-                wanted: preferBuiltInMic, builtIn: builtIn(),
+                target: pinTarget(), unpinNeeded: pinTarget() == nil && pinnedDevice != nil,
                 currentInputs: currentInputs(), current: currentDevice() ?? 0,
                 refusedFor: pinRefusedFor)
             if !drifted, let f = tapFormat, f.sampleRate == current.sampleRate,
@@ -460,18 +536,10 @@ public final class AudioCapture {
             routeChangeObserver = NotificationCenter.default.addObserver(
                 forName: .AVAudioEngineConfigurationChange, object: engine, queue: .main
             ) { [weak self] _ in
-                guard let self else { return }
-                self.rebuildWork?.cancel()
-                let work = DispatchWorkItem { [weak self] in
-                    guard let self, !self.running else { return }  // mid-capture: start() rebuilds after
-                    self.builtInCache = nil
-                    self.teardownTap()
-                    self.prewarm()
-                }
-                self.rebuildWork = work
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: work)
+                self?.scheduleRouteRebuild()  // mid-capture: start() rebuilds after
             }
         }
+        installDeviceListListener()
     }
 
     private func teardownTap() {

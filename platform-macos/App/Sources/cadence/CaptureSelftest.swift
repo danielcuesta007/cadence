@@ -33,37 +33,59 @@ func runCaptureSelftest() -> Int32 {
     // Menu form: real mic names, plain notes, no aggregate internals.
     check("menu_plain", plain.menuTitle == "MacBook Pro Microphone \u{00B7} 44 kHz")
     check("menu_aggregate_headset_failed",
-          agg.menuTitle == "AirPods \u{00B7} 24 kHz \u{00B7} headset mic, lower quality \u{00B7} couldn't switch to built-in")
+          agg.menuTitle == "AirPods \u{00B7} 24 kHz \u{00B7} headset mic, lower quality \u{00B7} couldn't switch mic")
     check("menu_aggregate_built_in_vp",
           aggBuiltIn.menuTitle == "MacBook Pro Microphone \u{00B7} 44 kHz")
     check("menu_hides_aggregate_name", !agg.menuTitle.contains("CADefault"))
 
     // Re-pin policy.
-    func repin(_ wanted: Bool = true, builtIn: UInt32? = 10, inputs: [UInt32], current: UInt32,
+    func repin(target: UInt32? = 10, unpin: Bool = false, inputs: [UInt32], current: UInt32,
                refused: UInt32? = nil) -> Bool {
-        RoutePolicy.needsRepin(wanted: wanted, builtIn: builtIn, currentInputs: inputs,
+        RoutePolicy.needsRepin(target: target, unpinNeeded: unpin, currentInputs: inputs,
                                current: current, refusedFor: refused)
     }
     check("repin_when_drifted", repin(inputs: [77], current: 77))
     check("no_repin_when_held", !repin(inputs: [10], current: 10))
     check("no_repin_when_aggregate_wraps_built_in", !repin(inputs: [10], current: 500))
-    check("no_repin_when_unwanted", !repin(false, inputs: [77], current: 77))
-    check("no_repin_without_built_in", !repin(builtIn: nil, inputs: [77], current: 77))
-    check("refused_route_not_hammered", !repin(inputs: [77], current: 77, refused: 77))
+    check("no_repin_when_following_default", !repin(target: nil, inputs: [77], current: 77))
+    check("unpin_vanished_headset", repin(target: nil, unpin: true, inputs: [20], current: 20))
+        check("refused_route_not_hammered", !repin(inputs: [77], current: 77, refused: 77))
     check("refused_unreadable_route_not_hammered", !repin(inputs: [], current: 0, refused: 0))
     check("new_route_gets_fresh_attempt", repin(inputs: [88], current: 88, refused: 77))
 
     // Pin outcome classification.
-    check("pin_held", RoutePolicy.pinResult(setStatus: 0, builtIn: 10, readBackInputs: [10]) == .held)
+    check("pin_held", RoutePolicy.pinResult(setStatus: 0, target: 10, readBackInputs: [10]) == .held)
     check("pin_held_through_vp_aggregate",
-          RoutePolicy.pinResult(setStatus: 0, builtIn: 10, readBackInputs: [10]) == .held)
+          RoutePolicy.pinResult(setStatus: 0, target: 10, readBackInputs: [10]) == .held)
     check("pin_error_status",
-          RoutePolicy.pinResult(setStatus: -10851, builtIn: 10, readBackInputs: [77]) == .failed(-10851))
+          RoutePolicy.pinResult(setStatus: -10851, target: 10, readBackInputs: [77]) == .failed(-10851))
     check("silent_pin_failure_caught",
-          RoutePolicy.pinResult(setStatus: 0, builtIn: 10, readBackInputs: [77]) == .failed(-1))
+          RoutePolicy.pinResult(setStatus: 0, target: 10, readBackInputs: [77]) == .failed(-1))
     check("pending_pin_is_silent", PinState.pending == .pending
           && InputRoute(deviceName: "Mic", sampleRate: 48000, voiceProcessing: false, pin: .pending)
               .description == "Mic @ 48000 Hz")
+
+    // Mic picker (2 Nov 2026: earbuds in → their mic; "Always Use Built-in" forces the Mac's).
+    let builtInDev = InputCandidate(id: 10, transport: kAudioDeviceTransportTypeBuiltIn)
+    let airpods = InputCandidate(id: 20, transport: kAudioDeviceTransportTypeBluetooth)
+    let bleBuds = InputCandidate(id: 21, transport: kAudioDeviceTransportTypeBluetoothLE)
+    let usb = InputCandidate(id: 30, transport: kAudioDeviceTransportTypeUSB)
+    let iphone = InputCandidate(id: 40, transport: kAudioDeviceTransportTypeContinuityCaptureWireless)
+    let virt = InputCandidate(id: 50, transport: kAudioDeviceTransportTypeVirtual)
+    let aggDev = InputCandidate(id: 60, transport: kAudioDeviceTransportTypeAggregate)
+    func pick(_ builtIn: Bool, _ d: [InputCandidate], default def: UInt32? = 10) -> UInt32? {
+        RoutePolicy.pinTarget(preferBuiltIn: builtIn, devices: d, defaultInput: def)
+    }
+    check("pick_earbuds_over_built_in_default", pick(false, [builtInDev, airpods]) == 20)
+    check("pick_earbuds_when_they_are_default", pick(false, [builtInDev, airpods], default: 20) == 20)
+    check("pick_ble_earbuds", pick(false, [builtInDev, bleBuds]) == 21)
+    check("pick_default_among_two_bluetooth", pick(false, [airpods, bleBuds], default: 21) == 21)
+    check("usb_is_not_a_headset", pick(false, [builtInDev, usb]) == nil)
+    check("user_chosen_usb_default_followed", pick(false, [usb, airpods, builtInDev], default: 30) == nil)
+    check("no_headset_follows_default", pick(false, [builtInDev, iphone, virt, aggDev]) == nil)
+    check("unknown_default_still_finds_earbuds", pick(false, [builtInDev, airpods], default: nil) == 20)
+    check("always_built_in_wins_over_earbuds", pick(true, [airpods, builtInDev], default: 20) == 10)
+    check("always_built_in_without_one", pick(true, [airpods]) == nil)
 
     check("transport_bluetooth", RoutePolicy.transportName(kAudioDeviceTransportTypeBluetooth) == "bluetooth")
     check("transport_ble", RoutePolicy.transportName(kAudioDeviceTransportTypeBluetoothLE) == "bluetooth")
