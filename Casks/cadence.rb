@@ -1,12 +1,12 @@
 # Homebrew cask for Cadence.
-#   brew tap danieljcuesta007/cadence https://github.com/danieljcuesta007/cadence
+#   brew tap danielcuesta007/cadence https://github.com/danielcuesta007/cadence
 #   brew install --cask --appdir=~/Applications cadence   (no admin rights needed)
 # qa/make-dmg.sh fills in version and sha256 for each release.
 cask "cadence" do
   version "0.1.5"
   sha256 "bfefc929442146a405dbe9d43ae862068cd51457a91ba714a742581578501d70"
 
-  url "https://github.com/danieljcuesta007/cadence/releases/download/v#{version}/Cadence.dmg"
+  url "https://github.com/danielcuesta007/cadence/releases/download/v#{version}/Cadence.dmg"
   name "Cadence"
   desc "On-device, offline push-to-talk dictation"
   homepage "https://cadence-dictation.pages.dev"

@@ -6,7 +6,7 @@
 import { readFile, writeFile } from 'node:fs/promises';
 
 export const JSON_URL = new URL('../releases.json', import.meta.url);
-const REPO = 'https://github.com/danieljcuesta007/cadence';
+const REPO = 'https://github.com/danielcuesta007/cadence';
 
 export async function load() { return JSON.parse(await readFile(JSON_URL, 'utf8')); }
 
