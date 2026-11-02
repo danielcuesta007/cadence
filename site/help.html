@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cadence help and questions</title>
+<meta name="description" content="Answers about Cadence: privacy, languages, the first-open notice, permissions, and what to do when dictation isn’t working.">
+<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#ffffff">
+<link rel="canonical" href="https://cadence-dictation.pages.dev/help.html">
+<meta property="og:title" content="Cadence help and questions">
+<meta property="og:description" content="Answers about Cadence: privacy, languages, the first-open notice, permissions, and what to do when dictation isn’t working.">
+<meta property="og:url" content="https://cadence-dictation.pages.dev/help.html">
+<meta property="og:image" content="https://cadence-dictation.pages.dev/icon-512-riso-v2.png">
+<meta property="og:image:alt" content="Cadence’s cobalt waveform with a pink centre bar">
+<meta property="og:site_name" content="Cadence">
+<meta name="twitter:card" content="summary">
+<link rel="icon" href="favicon-riso-v2.png" type="image/png" sizes="64x64">
+<link rel="icon" href="favicon-riso-v2.svg" type="image/svg+xml" sizes="any">
+<link rel="apple-touch-icon" href="apple-touch-icon-riso-v2.png" sizes="180x180">
+<link rel="stylesheet" href="style.css">
+<script src="site.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<!-- site:header -->
+<header class="site-header">
+  <a class="brand" href="index.html" aria-label="Cadence home"><img src="art/mark.svg" alt="" width="40" height="40"><span>Cadence</span></a>
+  <nav aria-label="Main navigation">
+    <a href="features.html">Features</a>
+    <a href="versions.html">Versions</a>
+    <a href="help.html" aria-current="page">Help</a>
+    <a href="about.html">About</a>
+    <a class="nav-cta" href="download.html">Download</a>
+  </nav>
+</header>
+<!-- /site:header -->
+
+<main id="main" tabindex="-1">
+<section class="page-head" aria-labelledby="page-title">
+  <p class="kicker">Help</p>
+  <h1 id="page-title">Help and questions</h1>
+  <p class="lede">Quick answers first, then fixes for the common snags. Still stuck? <a href="https://github.com/danieljcuesta007/cadence/issues" rel="noopener">Open an issue on GitHub</a>.</p>
+</section>
+
+<section class="faq" id="faq" aria-labelledby="faq-title">
+  <p class="kicker">Questions</p>
+  <h2 id="faq-title">Fair questions</h2>
+  <details><summary>Is it really free?</summary><p>Yes. Cadence is open source under the MIT license, with no account, trial or word limit.</p></details>
+  <details><summary>Does anything I say leave my Mac?</summary><p>No. Transcription runs on your Mac, and Cadence has no networking code. History is encrypted on your disk, and audio is only kept if you turn that on.</p></details>
+  <details><summary>Which languages?</summary><p>Any language the bundled Whisper model handles, two at a time: one per Option key, or set either key to detect the language automatically. English and Spanish are tested the most.</p></details>
+  <details><summary>Is the Terminal line safe?</summary><p>It runs <a href="install.sh">a short script</a> you can read first. It only downloads the release from GitHub, stops if the file doesn't match the published checksum, and copies Cadence.app into Applications. No admin password, and it never touches your history in ~/.cadence.</p></details>
+  <details><summary>Why does macOS warn me when I first open it?</summary><p>It isn't notarized, because that costs $99 a year and Cadence is free. The one-line install avoids the warning entirely. If you used the .dmg, <a href="download.html#why-warning">here's how to open it</a> on any macOS version, and how to check the file is genuine.</p></details>
+  <details><summary>Intel Mac? Windows? iPhone?</summary><p>Not yet. Cadence is built for Apple silicon Macs only, so it won't open on an Intel Mac. Windows is planned.</p></details>
+  <details><summary>Is it affiliated with Wispr Flow, Superwhisper, Apple or OpenAI?</summary><p>No. They're named only to compare and to credit. Cadence is an independent project.</p></details>
+</section>
+
+<section class="faq trouble" id="troubleshooting" aria-labelledby="trouble-title">
+  <p class="kicker">Troubleshooting</p>
+  <h2 id="trouble-title">If something isn't working</h2>
+  <details><summary>macOS says Cadence can't be opened</summary><p>That's the one-time notice for apps Apple hasn't notarized. Follow <a href="download.html#why-warning">the first-open steps</a>, or reinstall with the one-line install, which avoids it.</p></details>
+  <details><summary>Holding Option does nothing</summary><p>Cadence needs <b>Accessibility</b> to hear the key and type for you. Open System Settings › Privacy &amp; Security › Accessibility. If Cadence is listed but it still doesn't work, remove it with the minus button, add it again from Applications, then quit and reopen Cadence.</p></details>
+  <details><summary>The pill appears but no text comes out</summary><p>Check System Settings › Privacy &amp; Security › Microphone and make sure Cadence is on. The Cadence menu's Dictation Settings shows which microphone it is actually using.</p></details>
+  <details><summary>It picks up music or people around me</summary><p>Cadence listens through your Mac's microphone, so loud rooms and nearby voices can get into a dictation. Keep the Mac closer, speak a little louder than the room, and check Dictation Settings for the microphone in use. Better filtering for noisy places is being worked on; the <a href="versions.html">version history</a> will say when it lands.</p></details>
+  <details><summary>Spanish (or my second language) comes out wrong</summary><p>Make sure you're holding the Option key bound to that language (Left Option by default) and that the language is set in the Cadence menu. A short pause before you start speaking helps it lock on.</p></details>
+  <details><summary>How do I start over?</summary><p>Quit Cadence, delete it from Applications, and install it again with the one-line command. Your history in <code>~/.cadence</code> is kept unless you delete that folder.</p></details>
+</section>
+
+<p class="visually-hidden" role="status" data-copy-status></p>
+</main>
+
+<!-- site:footer -->
+<footer class="site-footer">
+  <div class="footer-brand"><img src="art/mark.svg" alt="" width="40" height="40"><p><strong>Cadence</strong><br><span class="footer-tagline">Your words. Your rhythm.</span><br>Built by DC Labs, a Daniel J. Cuesta company.</p></div>
+  <nav aria-label="Footer">
+    <a href="index.html">Home</a>
+    <a href="features.html">Features</a>
+    <a href="download.html">Download</a>
+    <a href="versions.html">Versions</a>
+    <a href="help.html">Help</a>
+    <a href="about.html">About</a>
+    <a href="legal.html#privacy">Privacy</a>
+    <a href="legal.html#license">License</a>
+    <a href="legal.html#credits">Credits</a>
+    <a href="https://github.com/danieljcuesta007/cadence" rel="noopener">Source</a>
+  </nav>
+  <p class="fineprint">© 2026 Daniel Cuesta. MIT licensed. Speech recognition by Whisper (OpenAI) via whisper.cpp, both MIT. Wispr Flow, Superwhisper, Apple and macOS belong to their owners. Cadence is not affiliated with or endorsed by them.</p>
+</footer>
+<!-- /site:footer -->
+</body>
+</html>

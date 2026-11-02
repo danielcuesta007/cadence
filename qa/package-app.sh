@@ -20,6 +20,11 @@ BIN=platform-macos/.build/release/cadence
 MODEL=${CADENCE_BUNDLE_MODEL:-models/artifacts/ggml-small.bin}
 APP=dist/Cadence.app
 
+# The version lives in ONE place: the first entry of releases.json (see its _about).
+VERSION=$(plutil -extract releases.0.version raw -o - releases.json 2>/dev/null) || VERSION=""
+BUILD=$(plutil -extract releases.0.build raw -o - releases.json 2>/dev/null) || BUILD=""
+[[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && "$BUILD" =~ ^[0-9]+$ ]] || { echo "releases.json: first entry needs a version like 0.1.5 and a numeric build" >&2; exit 1; }
+
 [[ -x "$BIN" ]] || { echo "build first: qa/build-shell.sh" >&2; exit 1; }
 [[ -f "$MODEL" ]] || { echo "model missing: run models/fetch-models.sh" >&2; exit 1; }
 
@@ -38,7 +43,7 @@ case "$(basename "$MODEL")" in
 esac
 cp platform-macos/App/AppIcon/AppIcon.icns "$APP/Contents/Resources/"
 
-cat > "$APP/Contents/Info.plist" <<'PLIST'
+cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
   "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -48,8 +53,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
     <key>CFBundleIdentifier</key>        <string>dev.cadence.app</string>
     <key>CFBundleName</key>              <string>Cadence</string>
     <key>CFBundleDisplayName</key>       <string>Cadence</string>
-    <key>CFBundleShortVersionString</key><string>0.1.5</string>
-    <key>CFBundleVersion</key>           <string>8</string>
+    <key>CFBundleShortVersionString</key><string>$VERSION</string>
+    <key>CFBundleVersion</key>           <string>$BUILD</string>
     <key>CFBundlePackageType</key>       <string>APPL</string>
     <key>CFBundleIconFile</key>          <string>AppIcon</string>
     <key>LSMinimumSystemVersion</key>    <string>14.0</string>
@@ -81,7 +86,7 @@ else
     SIGNED="ad-hoc"
 fi
 
-echo "packaged: $APP"
+echo "packaged: $APP  (version $VERSION, build $BUILD from releases.json)"
 codesign --verify --deep --strict "$APP" && echo "signature: OK ($SIGNED)"
 
 if [[ "${1:-}" == "--install" ]]; then

@@ -1,12 +1,18 @@
 #!/bin/bash
 # Turn dist/Cadence.app into a release disk image and point the installers at it.
-#   qa/package-app.sh && qa/make-dmg.sh 0.1.0
-# Writes dist/Cadence.dmg, records its SHA-256 in Casks/cadence.rb, the site's
-# download section and site/install.sh (the one-line installer), and prints the publish steps. It never publishes anything itself.
+#   qa/package-app.sh && qa/make-dmg.sh [version]
+# The version comes from the first entry of releases.json (the one list of versions); a
+# version argument is only a cross-check. Writes dist/Cadence.dmg, records its SHA-256 and
+# today's date in releases.json, Casks/cadence.rb and site/install.sh (the one-line
+# installer), regenerates the site's download details and version timeline, and prints the
+# publish steps. It never publishes anything itself.
 set -euo pipefail
-VERSION="${1:?usage: qa/make-dmg.sh <version, e.g. 0.1.0>}"
-[[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "make-dmg: version must look like 0.1.0 (no leading v)" >&2; exit 1; }
 cd "$(dirname "$0")/.."
+TOP=$(plutil -extract releases.0.version raw -o - releases.json 2>/dev/null) || { echo "make-dmg: releases.json is missing or unreadable" >&2; exit 1; }
+VERSION="${1:-$TOP}"
+[[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "make-dmg: version must look like 0.1.0 (no leading v)" >&2; exit 1; }
+[[ "$VERSION" == "$TOP" ]] || { echo "make-dmg: releases.json starts with $TOP, not $VERSION; add $VERSION at the top of releases.json first" >&2; exit 1; }
+command -v node >/dev/null 2>&1 || { echo "make-dmg: needs node to update the site's version pages (site/releases.mjs)" >&2; exit 1; }
 APP=dist/Cadence.app
 DMG=dist/Cadence.dmg
 
@@ -22,7 +28,7 @@ for f in LICENSE THIRD_PARTY_NOTICES.md; do
   [[ -f "$APP/Contents/Resources/$f" ]] || { echo "make-dmg: $f missing from the app; repackage" >&2; exit 1; }
 done
 APP_VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist" 2>/dev/null || true)
-[[ "$APP_VERSION" == "$VERSION" ]] || { echo "make-dmg: the app says version '$APP_VERSION' but you asked for $VERSION; set it in qa/package-app.sh and repackage" >&2; exit 1; }
+[[ "$APP_VERSION" == "$VERSION" ]] || { echo "make-dmg: the app says version '$APP_VERSION' but releases.json says $VERSION; repackage with qa/package-app.sh" >&2; exit 1; }
 codesign --verify --deep --strict "$APP" || { echo "make-dmg: app signature does not verify" >&2; exit 1; }
 
 STAGE=$(mktemp -d)
@@ -58,18 +64,18 @@ hdiutil create -quiet -volname "Cadence" -srcfolder "$STAGE" -format UDZO -fs HF
 SHA=$(shasum -a 256 "$DMG" | cut -d' ' -f1)
 
 sed -i '' -e "s|^  version \".*\"|  version \"$VERSION\"|" -e "s|^  sha256 \".*\"|  sha256 \"$SHA\"|" Casks/cadence.rb
-sed -i '' -E "s|<code data-sha>[^<]*</code>|<code data-sha>$SHA</code>|" site/index.html
 sed -i '' -e "s|^VERSION=\".*\"|VERSION=\"$VERSION\"|" -e "s|^SHA256=\".*\"|SHA256=\"$SHA\"|" site/install.sh
+node site/releases.mjs stamp "$VERSION" "$SHA" "${CADENCE_RELEASE_DATE:-}"
 
 cat <<MSG
 Built $DMG ($(du -h "$DMG" | cut -f1))
 SHA-256 $SHA
-Updated Casks/cadence.rb and site/index.html.
+Updated releases.json, Casks/cadence.rb, site/install.sh and the site's version pages.
 
 To publish (each step is outward-facing; do it on purpose):
   1. git tag v$VERSION && git push origin v$VERSION
   2. gh release create v$VERSION $DMG --title "Cadence $VERSION" --notes-file <notes>
      (keep the asset name Cadence.dmg: the site links to releases/latest/download/Cadence.dmg)
-  3. PR the Cask + site checksum change to dev, then dev to main.
+  3. PR releases.json, the Cask and the site changes to dev, then dev to main.
   4. Deploy the site: cd site && npm run build && npx wrangler pages deploy dist --project-name cadence-dictation
 MSG
