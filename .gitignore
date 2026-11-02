@@ -16,3 +16,4 @@ Cargo.lock.orig
 
 # Cloudflare Pages deploy cache (wrangler pages deploy from site/)
 site/.wrangler/
+/qa/fixtures/wer-noise/

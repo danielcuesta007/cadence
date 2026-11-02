@@ -75,3 +75,11 @@ Format: date · decision · why · reversibility. Larger decisions get an ADR in
     `ModelStore` trait (SQLite §24 plugs in later; JSON manifest for now). FFI gate
     `cadence_model_verify`. Idle model unload (<150 MB) designed but deferred — tension with the
     ~7 s cold load (ADR-0006). See ADR-0007.
+22. **Noise: measure first, filter captions, keep decode defaults** (Step 15, 2026-11-02) —
+    `qa/noise-bench.sh` mixes babble/music under the §30 fixtures at fixed SNRs. Music barely
+    matters (2.2% WER at 0 dB); nearby voices do (17.8%). Whisper's sound captions
+    ("[indistinct chatter]") are stripped before anything is typed (`strip_non_speech`, strict:
+    real brackets survive). Beam 5 cut babble-0 dB errors ~22% but cost one clean error and ~70%
+    ASR time, so greedy stays the default; beam/suppress-nst remain env A/B switches only. Voice
+    Isolation stays experimental/off until a consented live A/B proves it (and its teardown).
+    The capture log/menu now name the real mic behind aggregates and the pin result.

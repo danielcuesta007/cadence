@@ -205,10 +205,12 @@ platform-macos/.build/release/cadence selftest-hotkeys   # PTT, double-tap hands
 platform-macos/.build/release/cadence selftest-delivery  # safe live previews, recovery, UTF-16 ranges
 platform-macos/.build/release/cadence selftest-lifecycle # startup, heartbeat, shutdown evidence
 platform-macos/.build/release/cadence selftest-appearance [--out dir]  # light/dark renders
+platform-macos/.build/release/cadence selftest-capture   # mic route log, built-in pin policy
 qa/wer-harness.sh                                  # word error rate + ASR latency together
+qa/noise-bench.sh <model.bin> [label]              # same, under synthetic babble/music at 10/5/0 dB
 qa/spine-selftest.sh                               # end-to-end WAV to inserted text
 (cd site && npm run build && npm test)             # website: links, CSP, honesty, checksums
-python3 -B -m unittest qa.test_make_dmg            # release disk image guards
+python3 -B -m unittest qa.test_make_dmg qa.test_noise  # disk image guards, noise mixing maths
 ```
 
 Is Start at Login really registered? Ask the installed bundle, not the menu checkmark

@@ -61,6 +61,13 @@ public final class AudioCapture {
     /// fail, start() drops it for the session rather than cancel dictations.
     public var voiceIsolation = false
     private var vpDisabledFallback = false
+    /// Result of the last built-in-mic pin attempt (logged with every capture start).
+    private var pinState: PinState = .pending
+    /// Device that was current when the system last refused the pin: not retried for that
+    /// same route on every key press (see RoutePolicy.needsRepin).
+    private var pinRefusedFor: AudioDeviceID?
+    /// Built-in mic id, looked up once per route (cold path / route change), never per key press.
+    private var builtInCache: AudioDeviceID??
 
     public func setPreferBuiltInMic(_ on: Bool) {
         guard on != preferBuiltInMic else { return }
@@ -84,21 +91,77 @@ public final class AudioCapture {
     /// Actual engine state, including session fallback; distinct from the saved preference.
     public var voiceProcessingActive: Bool { engine.inputNode.isVoiceProcessingEnabled }
 
-    /// Human-readable current input ("MacBook Pro Microphone @ 48000 Hz") for the log.
-    public var inputDescription: String {
+    /// What capture is listening through right now, including aggregate members and whether
+    /// the built-in pin held. `inputDescription` is its log form.
+    public var currentRoute: InputRoute {
         let fmt = engine.inputNode.inputFormat(forBus: 0)
         var name = "default input"
-        if let unit = engine.inputNode.audioUnit {
-            var dev = AudioDeviceID(0)
-            var size = UInt32(MemoryLayout<AudioDeviceID>.size)
-            if AudioUnitGetProperty(
-                unit, kAudioOutputUnitProperty_CurrentDevice, kAudioUnitScope_Global, 0,
-                &dev, &size) == noErr, dev != 0, let n = Self.deviceName(dev) {
-                name = n
-            }
+        var members: [String] = []
+        if let dev = currentDevice() {
+            name = Self.deviceName(dev) ?? name
+            var ids = Self.aggregateInputMemberIDs(dev)
+            // An aggregate lists every member that HAS input streams (output-only AirPods
+            // included), not the one it takes input from. When the built-in is a member, it is
+            // the one capture selected (pin / voice processing), so report just it.
+            if let b = builtIn(), ids.contains(b) { ids = [b] }
+            members = ids.map(Self.memberLabel)
         }
-        let vp = engine.inputNode.isVoiceProcessingEnabled ? " +vp" : ""
-        return "\(name) @ \(Int(fmt.sampleRate)) Hz\(vp)"
+        return InputRoute(
+            deviceName: name, aggregateInputs: members, sampleRate: Int(fmt.sampleRate),
+            voiceProcessing: engine.inputNode.isVoiceProcessingEnabled,
+            pin: preferBuiltInMic ? pinState : .off)
+    }
+
+    /// Log form, e.g. "MacBook Pro Microphone @ 44100 Hz".
+    public var inputDescription: String { currentRoute.description }
+
+    private func currentDevice() -> AudioDeviceID? {
+        guard let unit = engine.inputNode.audioUnit else { return nil }
+        var dev = AudioDeviceID(0)
+        var size = UInt32(MemoryLayout<AudioDeviceID>.size)
+        guard AudioUnitGetProperty(
+            unit, kAudioOutputUnitProperty_CurrentDevice, kAudioUnitScope_Global, 0,
+            &dev, &size) == noErr, dev != 0
+        else { return nil }
+        return dev
+    }
+
+    /// Devices capture is effectively taking input from: the device itself, or an aggregate's
+    /// input-capable members (AUVoiceIO and AVAudioEngine both wrap the mic in one).
+    private func currentInputs() -> [AudioDeviceID] {
+        guard let dev = currentDevice() else { return [] }
+        let members = Self.aggregateInputMemberIDs(dev)
+        return members.isEmpty ? [dev] : members
+    }
+
+    private func builtIn() -> AudioDeviceID? {
+        if let cached = builtInCache { return cached }
+        let found = Self.builtInInputDevice()
+        builtInCache = .some(found)
+        return found
+    }
+
+    /// Point capture at the built-in mic when preferred; records the outcome in pinState.
+    /// Called on the cold path only (tap rebuild), so the device scan is not per key press.
+    private func applyPin() {
+        guard preferBuiltInMic else { pinState = .off; return }
+        builtInCache = nil // cold path: the device list may have changed
+        guard let builtIn = builtIn() else { pinState = .noBuiltIn; return }
+        if currentInputs().contains(builtIn) {
+            pinState = .held
+            pinRefusedFor = nil
+            return
+        }
+        guard let unit = engine.inputNode.audioUnit else { pinState = .failed(-1); return }
+        var id = builtIn
+        let status = AudioUnitSetProperty(
+            unit, kAudioOutputUnitProperty_CurrentDevice, kAudioUnitScope_Global, 0,
+            &id, UInt32(MemoryLayout<AudioDeviceID>.size))
+        pinState = RoutePolicy.pinResult(
+            setStatus: status, builtIn: builtIn, readBackInputs: currentInputs())
+        // Key the refusal on the route as it stands AFTER the attempt — that is what the warm
+        // path compares against (0 = unreadable), so a refused route is not retried per press.
+        if case .failed = pinState { pinRefusedFor = currentDevice() ?? 0 } else { pinRefusedFor = nil }
     }
 
     // MARK: - CoreAudio device selection
@@ -114,6 +177,51 @@ public final class AudioCapture {
             let name = nameRef?.takeRetainedValue()
         else { return nil }
         return name as String
+    }
+
+    private static func uint32Property(_ id: AudioObjectID, _ selector: AudioObjectPropertySelector)
+        -> UInt32?
+    {
+        var addr = AudioObjectPropertyAddress(
+            mSelector: selector, mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain)
+        var v: UInt32 = 0
+        var size = UInt32(MemoryLayout<UInt32>.size)
+        guard AudioObjectGetPropertyData(id, &addr, 0, nil, &size, &v) == noErr else { return nil }
+        return v
+    }
+
+    private static func hasInputStreams(_ id: AudioDeviceID) -> Bool {
+        var addr = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyStreams, mScope: kAudioDevicePropertyScopeInput,
+            mElement: kAudioObjectPropertyElementMain)
+        var size: UInt32 = 0
+        return AudioObjectGetPropertyDataSize(id, &addr, 0, nil, &size) == noErr && size > 0
+    }
+
+    /// For an aggregate (incl. AVAudioEngine's auto "CADefaultDeviceAggregate" and AUVoiceIO's),
+    /// the active members that have input streams. Empty for a plain device.
+    private static func aggregateInputMemberIDs(_ id: AudioDeviceID) -> [AudioDeviceID] {
+        guard let t = uint32Property(id, kAudioDevicePropertyTransportType),
+            RoutePolicy.transportName(t) == "aggregate"
+        else { return [] }
+        var addr = AudioObjectPropertyAddress(
+            mSelector: kAudioAggregateDevicePropertyActiveSubDeviceList,
+            mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
+        var size: UInt32 = 0
+        guard AudioObjectGetPropertyDataSize(id, &addr, 0, nil, &size) == noErr, size > 0 else {
+            return []
+        }
+        var subs = [AudioObjectID](repeating: 0, count: Int(size) / MemoryLayout<AudioObjectID>.size)
+        guard AudioObjectGetPropertyData(id, &addr, 0, nil, &size, &subs) == noErr else { return [] }
+        return subs.filter(hasInputStreams)
+    }
+
+    /// "Name (transport)" for the log and menu.
+    private static func memberLabel(_ id: AudioDeviceID) -> String {
+        let transport = uint32Property(id, kAudioDevicePropertyTransportType)
+            .map(RoutePolicy.transportName) ?? "other"
+        return "\(deviceName(id) ?? "device \(id)") (\(transport))"
     }
 
     /// The built-in input device (transport type built-in, has input streams), or nil
@@ -230,6 +338,9 @@ public final class AudioCapture {
         let old = engine
         tapInstalled = false
         tapFormat = nil
+        pinState = .pending
+        pinRefusedFor = nil
+        builtInCache = nil
         engine = AVAudioEngine()
         DispatchQueue.global(qos: .utility).async {
             old.stop()
@@ -256,7 +367,11 @@ public final class AudioCapture {
             // Trust the format, not the flag: a route change the observer missed (or one
             // that landed mid-debounce) leaves a tap bound to the old sample rate.
             let current = engine.inputNode.inputFormat(forBus: 0)
-            if let f = tapFormat, f.sampleRate == current.sampleRate,
+            let drifted = RoutePolicy.needsRepin(
+                wanted: preferBuiltInMic, builtIn: builtIn(),
+                currentInputs: currentInputs(), current: currentDevice() ?? 0,
+                refusedFor: pinRefusedFor)
+            if !drifted, let f = tapFormat, f.sampleRate == current.sampleRate,
                 f.channelCount == current.channelCount {
                 return
             }
@@ -277,13 +392,10 @@ public final class AudioCapture {
         }
         // Pin the built-in mic (when preferred and present) BEFORE reading the format:
         // the AUHAL otherwise follows the system default input, i.e. whatever Bluetooth
-        // headset connected last. Failure to pin falls through to the default silently.
-        if preferBuiltInMic, let dev = Self.builtInInputDevice(), let unit = input.audioUnit {
-            var id = dev
-            _ = AudioUnitSetProperty(
-                unit, kAudioOutputUnitProperty_CurrentDevice, kAudioUnitScope_Global, 0,
-                &id, UInt32(MemoryLayout<AudioDeviceID>.size))
-        }
+        // headset connected last. Failure to pin falls through to the default input.
+        // The outcome is recorded (pinState) and logged with every capture start: before Step 15
+        // it was discarded, and 22% of live captures logged an opaque aggregate name.
+        applyPin()
         // The HARDWARE format, not outputFormat(forBus:): installTap asserts
         // format.sampleRate == inputHWFormat.sampleRate, and the output side can serve a
         // stale rate after a route change (the exact repeated live failure) while
@@ -352,6 +464,7 @@ public final class AudioCapture {
                 self.rebuildWork?.cancel()
                 let work = DispatchWorkItem { [weak self] in
                     guard let self, !self.running else { return }  // mid-capture: start() rebuilds after
+                    self.builtInCache = nil
                     self.teardownTap()
                     self.prewarm()
                 }
