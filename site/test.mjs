@@ -3,9 +3,14 @@ import assert from 'node:assert/strict';
 import { readFile, readdir, access } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
 import { files as SHIPPED, art as ART } from './files.mjs';
+import { PAGES, header, footer, render } from './pages.mjs';
+import { load, validate, latest, timeline, stamp, humanDate } from './releases.mjs';
 
-const pages = { 'index.html': await readFile('index.html', 'utf8'), 'legal.html': await readFile('legal.html', 'utf8') };
-const home = pages['index.html'], legal = pages['legal.html'], html = home + legal;
+const pages = Object.fromEntries(await Promise.all(PAGES.map(async p => [p, await readFile(p, 'utf8')])));
+const home = pages['index.html'], legal = pages['legal.html'], download = pages['download.html'], features = pages['features.html'];
+const versions = pages['versions.html'], help = pages['help.html'], about = pages['about.html'];
+const html = Object.values(pages).join('\n');
+const releases = await load();
 const css = await readFile('style.css', 'utf8');
 const js = await readFile('site.js', 'utf8');
 const tryJs = await readFile('try.js', 'utf8');
@@ -24,13 +29,14 @@ test('internal links and fragments resolve, IDs are unique per page', () => {
       if (fragment) assert.ok(pages[file || name].includes(`id="${fragment}"`), `${name}: ${href}`);
     }
   }
-  for (const id of ['features', 'compare', 'download', 'creator', 'faq', 'why-warning']) assert.ok(home.includes(`id="${id}"`), id);
+  for (const [page, ids] of [[features, ['features', 'controls', 'compare']], [download, ['download', 'why-warning', 'no-open-anyway', 'manage']],
+    [about, ['creator']], [help, ['faq', 'troubleshooting']]]) for (const id of ids) assert.ok(page.includes(`id="${id}"`), id);
   for (const id of ['privacy', 'license', 'credits', 'trademarks', 'contact']) assert.ok(legal.includes(`id="${id}"`), id);
 });
 
 test('local assets exist and nothing loads from another origin', async () => {
   for (const [, ref] of html.matchAll(/(?:src|href)="([^"#:]+\.(?:css|js|png|svg))"/g)) await access(ref);
-  assert.doesNotMatch(html, /<(?:script|link|img|iframe)\b[^>]*(?:src|href)="https?:/);
+  assert.doesNotMatch(html, /<(?:script|link(?![^>]*rel="canonical")|img|iframe)\b[^>]*(?:src|href)="https?:/);
   for (const [, href] of html.matchAll(/<a\b[^>]*href="(https?:[^"]+)"/g)) assert.match(href, OUTBOUND, href);
   assert.doesNotMatch(js, /fetch\s*\(|XMLHttpRequest|sendBeacon|WebSocket|localStorage|sessionStorage|https?:\/\//);
 });
@@ -55,27 +61,27 @@ test('each page has one h1, a skip link and labelled navigation', () => {
   // One white-paper sheet for every visitor: no navy night palette, and no auto-darkening.
   assert.doesNotMatch(css, /prefers-color-scheme/);
   assert.match(css, /color-scheme:light;/);
-  assert.match(home, /<meta name="color-scheme" content="light">/);
-  assert.doesNotMatch(home, /theme-color[^>]*prefers-color-scheme: dark/);
+  for (const p of [home, features, download, versions, help, about]) assert.match(p, /<meta name="color-scheme" content="light">/);
+  assert.doesNotMatch(html, /theme-color[^>]*prefers-color-scheme: dark/);
   assert.match(css, /min-height:44px/);
 });
 
 test('the notarization choice is explained plainly', () => {
-  assert.match(home, /\$99 a year/);
-  assert.match(home, /not passing that cost on to you/);
-  assert.match(home, /deliberate choice/);
-  assert.match(home, /Open Anyway/);
+  assert.match(download, /\$99 a year/);
+  assert.match(download, /not passing that cost on to you/);
+  assert.match(download, /deliberate choice/);
+  assert.match(download, /Open Anyway/);
   // Sonoma and earlier show "Apple cannot check it" with OK, not Done; it needs its own route.
-  assert.match(home, /macOS 14 Sonoma there's a shortcut: Control-click/);
-  assert.match(home, /not from the disk image/);
-  assert.match(home, /data-copy="curl -fsSL https:\/\/cadence-dictation\.pages\.dev\/install\.sh \| sh"/);
-  assert.match(home, /data-copy="xattr -dr com\.apple\.quarantine \/Applications\/Cadence\.app"/);
-  assert.match(home, /Microphone<\/b>.*Accessibility<\/b>/s);
+  assert.match(download, /macOS 14 Sonoma there's a shortcut: Control-click/);
+  assert.match(download, /not from the disk image/);
+  assert.match(download, /data-copy="curl -fsSL https:\/\/cadence-dictation\.pages\.dev\/install\.sh \| sh"/);
+  assert.match(download, /data-copy="xattr -dr com\.apple\.quarantine \/Applications\/Cadence\.app"/);
+  assert.match(download, /Microphone<\/b>.*Accessibility<\/b>/s);
   assert.doesNotMatch(html, /\bis notarized\b|signed by Apple|Developer ID/i);
 });
 
 test('comparison is dated, sourced and fair', () => {
-  const section = home.match(/<section class="compare"[\s\S]*?<\/section>/)[0];
+  const section = features.match(/<section class="compare"[\s\S]*?<\/section>/)[0];
   assert.match(section, /as of October 2026/);
   for (const source of ['wisprflow.ai/pricing', 'wisprflow.ai/privacy', 'superwhisper.com', 'support.apple.com']) assert.ok(section.includes(source), source);
   assert.match(section, /Where they win/);
@@ -87,8 +93,8 @@ test('comparison is dated, sourced and fair', () => {
 });
 
 test('download button, cask and published checksum agree', () => {
-  assert.match(home, /href="https:\/\/github\.com\/danieljcuesta007\/cadence\/releases\/latest\/download\/Cadence\.dmg"/);
-  const sha = home.match(/<code data-sha>([^<]*)<\/code>/)[1];
+  assert.match(download, /href="https:\/\/github\.com\/danieljcuesta007\/cadence\/releases\/latest\/download\/Cadence\.dmg"/);
+  const sha = download.match(/<code data-sha>([^<]*)<\/code>/)[1];
   assert.ok(cask.includes(`sha256 "${sha}"`), 'site and cask checksums differ');
   assert.match(cask, /releases\/download\/v#\{version\}\/Cadence\.dmg/);
   assert.match(cask, /depends_on arch: :arm64/);
@@ -157,10 +163,13 @@ test('two copy buttons share the status line without wiping each other', async (
 });
 
 test('the page has the status line copy results are announced in', () => {
-  const tags = home.match(/<[^>]*data-copy-status[^>]*>/g) || [];
-  assert.equal(tags.length, 1, 'exactly one status line');
-  assert.match(tags[0], /role="status"/);
-  assert.match(tags[0], /class="visually-hidden"/, 'the status line must stay invisible');
+  for (const [name, page] of Object.entries(pages)) {
+    if (!page.includes('data-copy=')) continue;
+    const tags = page.match(/<[^>]*data-copy-status[^>]*>/g) || [];
+    assert.equal(tags.length, 1, `${name}: exactly one status line`);
+    assert.match(tags[0], /role="status"/);
+    assert.match(tags[0], /class="visually-hidden"/, 'the status line must stay invisible');
+  }
 });
 
 test('copy degrades: no selection API gives an honest message; no status line keeps the buttons', async () => {
@@ -214,14 +223,14 @@ test('the riso art is self-contained and works under the strict policy', async (
     assert.doesNotMatch(svg, /rgba?\(|hsla?\(/, `${file} uses hex inks only`);
     assert.equal((svg.match(/filter="url\(#grain\)"/g) || []).length, 1, `${file} runs the grain once`);
   }
-  for (const file of ART.filter(f => !f.endsWith('mark.svg'))) assert.ok(home.includes(`src="${file}"`), `${file} is on the home page`);
-  assert.ok(home.includes('src="art/mark.svg"') && legal.includes('src="art/mark.svg"'), 'both pages carry the mark');
+  for (const file of ART.filter(f => !f.endsWith('mark.svg'))) assert.ok(html.includes(`src="${file}"`), `${file} is used on a page`);
+  for (const [name, page] of Object.entries(pages)) assert.ok(page.includes('src="art/mark.svg"'), `${name} carries the mark`);
   assert.match(css, /--red-text:#b02d18;/, 'small red text uses the AA red');
   // White, not cream (Daniel, 29 Oct): the paper and every print card are pure white.
   assert.match(css, /--paper:#ffffff;/); assert.match(css, /--card:#ffffff;/);
   // Illustration cards may be a breath warmer than the page, never actual cream.
   assert.match(css, /--print:#fdfaf3;/);
-  assert.doesNotMatch(css + home + legal, /#f3ecdc|#ebe2cc|#fbf7ee/i, 'no cream left anywhere');
+  assert.doesNotMatch(css + html, /#f3ecdc|#ebe2cc|#fbf7ee/i, 'no cream left anywhere');
   assert.match(css, /--blue:#2443c4;/); assert.match(css, /--pink:#f2a2bf;/); assert.match(css, /--red:#ec4a32;/);
 });
 
@@ -229,7 +238,7 @@ test('the riso art is self-contained and works under the strict policy', async (
 test('every page credits "Built by DC Labs, a Daniel J. Cuesta company", never "with Claude"', () => {
   assert.doesNotMatch(html, /with(&nbsp;|\s| )Claude/i);
   // 29 Oct: one credit line for every DC Labs product.
-  for (const page of [home, legal]) assert.match(page, /Built by DC Labs, a Daniel J\. Cuesta company\./);
+  for (const page of Object.values(pages)) assert.match(page, /Built by DC Labs, a Daniel J\. Cuesta company\./);
 });
 
 // 29 Oct: "more textured like papery … the site itself I still want in the textured white paper look."
@@ -427,7 +436,7 @@ test('both pages select versioned transparent brand icons and share the current 
 test('the one-line installer pins the published release', async () => {
   const { readFile } = await import('node:fs/promises');
   const sh = await readFile(new URL('./install.sh', import.meta.url), 'utf8');
-  const sha = home.match(/<code data-sha>([0-9a-f]{64})<\/code>/)[1];
+  const sha = download.match(/<code data-sha>([0-9a-f]{64})<\/code>/)[1];
   assert.match(sh, new RegExp(`^SHA256="${sha}"$`, 'm'));
   assert.match(sh, /^VERSION="\d+\.\d+\.\d+"$/m);
   assert.match(sh, /releases\/download\/v\$VERSION\/Cadence\.dmg/);
@@ -435,4 +444,86 @@ test('the one-line installer pins the published release', async () => {
   assert.doesNotMatch(sh, /rm -rf[^\n]*\.cadence/);
   const headers = await readFile(new URL('./_headers', import.meta.url), 'utf8');
   assert.match(headers, /\/install\.sh\n  Content-Type: text\/plain/);
+});
+
+// 1 Nov: "make sure all versions are super easily manageable, add a version history timeline on
+// the site, instead of making it one long scrollable page, lets make the website pages itself".
+test('every page shares one header and footer, and marks where you are', () => {
+  for (const [name, page] of Object.entries(pages)) {
+    assert.ok(page.includes(`<!-- site:header -->\n${header(name)}\n<!-- /site:header -->`), `${name}: header is the shared one`);
+    assert.ok(page.includes(`<!-- site:footer -->\n${footer()}\n<!-- /site:footer -->`), `${name}: footer is the shared one`);
+    const nav = page.match(/<nav aria-label="Main navigation">[\s\S]*?<\/nav>/)[0];
+    for (const target of ['features.html', 'versions.html', 'help.html', 'about.html', 'download.html']) assert.ok(nav.includes(`href="${target}"`), `${name} links ${target}`);
+    if (name !== 'legal.html') assert.equal((page.match(/aria-current="page"/g) || []).length, 1, `${name} marks itself once`);
+    // Cloudflare Pages serves /download.html as a redirect to /download: canonicals name the served URL.
+    assert.ok(page.includes(`<link rel="canonical" href="https://cadence-dictation.pages.dev/${name === 'index.html' ? '' : name.replace('.html', '')}">`), `${name} canonical`);
+  }
+  // Phones keep the page links (a scrollable row) instead of hiding them.
+  assert.doesNotMatch(css, /\.site-header nav a:not\(\.nav-cta\) \{ display:none; \}/);
+  assert.match(css, /\.site-header nav \{ order:3; width:100%; flex-wrap:nowrap; overflow-x:auto;/);
+  assert.ok(SHIPPED.includes('versions.html') && SHIPPED.includes('download.html'));
+});
+
+test('the pages are exactly what pages.mjs renders from releases.json (nothing stale)', async () => {
+  const fresh = await render(releases);
+  for (const [name, page] of Object.entries(fresh)) assert.equal(pages[name], page, `${name} is stale: run node pages.mjs`);
+});
+
+test('releases.json is a valid newest-first list, and the app and installers follow it', async () => {
+  const list = validate(releases);
+  const top = list[0], newest = latest(list);
+  const pkg = await readFile('../qa/package-app.sh', 'utf8');
+  assert.match(pkg, /plutil -extract releases\.0\.version raw/); assert.match(pkg, /<string>\$VERSION<\/string>/); assert.match(pkg, /<string>\$BUILD<\/string>/);
+  assert.doesNotMatch(pkg, /CFBundleShortVersionString<\/key><string>\d/, 'no hardcoded app version left');
+  const sh = await readFile('install.sh', 'utf8');
+  assert.match(sh, new RegExp(`^VERSION="${newest.version.replace(/\./g, '\\.')}"$`, 'm'), 'installer pins the latest released version');
+  assert.match(sh, new RegExp(`^SHA256="${newest.sha256}"$`, 'm'));
+  assert.ok(cask.includes(`version "${newest.version}"`) && cask.includes(`sha256 "${newest.sha256}"`), 'cask pins the latest release');
+  assert.ok(download.includes(`Cadence ${newest.version}</b>, released ${humanDate(newest.date)}`));
+  for (const r of list) assert.ok(versions.includes(`id="v${r.version.replace(/\./g, '-')}"`), `${r.version} on the timeline`);
+  assert.equal((versions.match(/class="release-tag">Latest</g) || []).length, 1);
+  if (top !== newest) assert.match(versions, /In testing/);
+});
+
+test('releases.json refuses mistakes and stamps only the version on top', () => {
+  const base = () => JSON.parse(JSON.stringify(releases));
+  const bad = [
+    d => { d.releases[1].version = d.releases[0].version; },
+    d => { d.releases[0].build = d.releases[1].build; },
+    d => { d.releases[1].date = null; d.releases[1].sha256 = null; },
+    d => { d.releases[0].date = '2026-11-01'; d.releases[0].sha256 = null; },
+    d => { d.releases[0].version = 'v1.0'; },
+    d => { d.releases[0].highlights = []; },
+  ];
+  for (const mutate of bad) { const d = base(); mutate(d); assert.throws(() => validate(d)); }
+  // Work on a copy whose top entry is unreleased, whatever the live list's state.
+  const unreleased = () => { const x = base(); x.releases[0].date = null; x.releases[0].sha256 = null; return x; };
+  const d = unreleased(); const top = d.releases[0].version;
+  assert.throws(() => stamp(unreleased(), '9.9.9', 'a'.repeat(64), '2026-11-02'), /add 9\.9\.9 at the top/);
+  assert.throws(() => stamp(unreleased(), top, 'nothex', '2026-11-02'));
+  const out = stamp(d, top, 'b'.repeat(64), '2026-11-02');
+  assert.equal(out.releases[0].sha256, 'b'.repeat(64)); assert.equal(latest(out.releases).version, top);
+  assert.match(timeline(out.releases), /November 2, 2026/);
+});
+
+test('links shared before the split still land on the right page', () => {
+  const ctx = { document: { querySelectorAll: () => [], querySelector: () => null }, navigator: {} };
+  runInNewContext(js + '\nthis.movedSection = movedSection;', ctx);
+  assert.equal(ctx.movedSection('/', '#download'), 'download.html');
+  assert.equal(ctx.movedSection('/index.html', '#why-warning'), 'download.html#why-warning');
+  assert.equal(ctx.movedSection('/', '#compare'), 'features.html#compare');
+  assert.equal(ctx.movedSection('/', '#faq'), 'help.html');
+  assert.equal(ctx.movedSection('/', '#try'), null, 'sections still on the home page stay');
+  assert.equal(ctx.movedSection('/download.html', '#download'), null, 'only the home page forwards');
+  const redirected = [];
+  runInNewContext(js, { location: { pathname: '/', hash: '#creator', replace: u => redirected.push(u) }, document: { querySelectorAll: () => [], querySelector: () => null }, navigator: {} });
+  assert.deepEqual(redirected, ['about.html']);
+});
+
+test('a released version can never be re-stamped with a different checksum', () => {
+  const d = JSON.parse(JSON.stringify(releases));
+  const top = d.releases[0];
+  top.date = '2026-11-02'; top.sha256 = 'c'.repeat(64);
+  assert.throws(() => stamp(JSON.parse(JSON.stringify(d)), top.version, 'd'.repeat(64), '2026-11-05'), /already recorded/);
+  assert.doesNotThrow(() => stamp(JSON.parse(JSON.stringify(d)), top.version, 'c'.repeat(64), '2026-11-02'));
 });

@@ -602,7 +602,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         var parts = ["Hold Right-Option (\(name(primary)))"]
         if secondary != "off" { parts.append("Left-Option (\(name(secondary)))") }
-        if handsFree { parts.append("Double-tap to start · tap once to finish") }
+        if handsFree { parts.append("Double-tap (or tap, then hold) for hands-free · tap once to finish") }
         parts.append("Esc cancels")
         parts.append("⌃⌥⌘Z undoes")
         return parts.joined(separator: " · ")

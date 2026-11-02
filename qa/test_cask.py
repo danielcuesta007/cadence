@@ -39,7 +39,7 @@ class CaskTest(unittest.TestCase):
 
     def test_documented_command_needs_no_admin(self):
         cmd = 'brew install --cask --appdir=~/Applications cadence'
-        for rel in ('README.md', 'site/index.html', 'Casks/cadence.rb'):
+        for rel in ('README.md', 'site/download.html', 'Casks/cadence.rb'):
             text = (ROOT / rel).read_text()
             self.assertIn(cmd, text, rel)
             self.assertNotIn('brew install --cask cadence', text, rel)

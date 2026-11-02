@@ -2,6 +2,45 @@
 
 Updated: 2026-11-01 · Phase: **1 (MVP spine)** · Blueprint: docs/CADENCE_BLUEPRINT.md
 
+## Step 14 — Versions in one place, and a multi-page site (2026-11-02)
+
+Objective (Daniel, verbatim): "make sure all verisons are super eaisly managelbe, add a verison
+history timelien on the site, instead of making it one long scrooable page, lets make the
+wbsite oages itelsf, PLEASe aduit nad irmpvoe the whoel experince".
+
+releases.json (repo root) is the ONE version list, newest first. qa/package-app.sh reads the
+app version/build from its first entry; qa/make-dmg.sh refuses any other version and, after
+building, stamps that entry's sha256/date (`node site/pages.mjs stamp`), the cask and
+install.sh, and regenerates the site. The site is now 7 pages (home, features, download,
+versions, help, about, legal); site/pages.mjs writes the shared header/footer and the
+release blocks (timeline, latest line, checksum) on every build, so nothing can go stale.
+Phones keep the page links as a scrollable row (they used to be hidden). New: controls
+table, update/rollback/remove section, troubleshooting (including noisy rooms, honestly
+marked as being worked on).
+
+Verified: site tests 33/33 (shared layout, freshness against releases.json, validation of
+bad lists, stamping), qa 19/19 (make-dmg with releases.json, version default, wrong app
+version refused); checked in Chrome on desktop. Not checked: real phone width (the window
+would not resize).
+
+## Step 13 — Even more forgiving hands-free, and tap-then-hold (2026-11-01)
+
+Objective (Daniel, verbatim): "the double tap shoudl be even mor eforgiving pls and hsoiudl
+be also abel to be riggerterfe with a long hold, the one tap end till applys".
+Interpreted as tap, then press-and-hold (a single long hold stays push-to-talk, or every
+held dictation would latch). Changes: first tap ≤0.45 s (was 0.35); gap = macOS
+double-click speed + 0.2 s, clamped 0.6–1.0 s (0.7 s default; was 0.5); the second press
+may be any length and latches the moment it goes DOWN (pill reads hands-free during the
+hold; a chord within 0.45 s of that press still retracts, later typing keeps the speech);
+one clean owner tap still finishes. Menu hint
+and README updated.
+
+Verified: hotkeys 123/123 (timing boundaries rewritten for the new values; new
+tap-then-hold, long finish press, Escape during a held second press, hands-free-off never
+latches); planting the old "second press must be quick" rule fails 6 checks; delivery 20/20.
+Trade-off: a lone tap now waits 0.7 s (default) before stopping; a short hold followed by
+another press within the gap latches hands-free instead of starting a new dictation.
+
 ## Step 12 — Easier Mac download without notarization (2026-11-01)
 
 Objective (Daniel): "i used the hombre version and it didnit work for me"; "make this

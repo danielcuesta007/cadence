@@ -1,6 +1,19 @@
 // Cadence site: staggered words in the hero demo and copy buttons.
 // No network, no storage. Without this script the page still reads fully.
 
+// The site used to be one page; links shared before 2 Nov 2026 point at its sections
+// (cadence-dictation.pages.dev/#download). Send those to the page that now holds them.
+const MOVED = { download: 'download.html', 'why-warning': 'download.html#why-warning', 'no-open-anyway': 'download.html#no-open-anyway',
+  features: 'features.html', compare: 'features.html#compare', creator: 'about.html', faq: 'help.html' };
+function movedSection(path, hash) {
+  if (!/(^|\/)(index\.html)?$/.test(path)) return null;
+  return MOVED[(hash || '').replace(/^#/, '')] || null;
+}
+if (typeof location !== 'undefined' && location.replace) {
+  const target = movedSection(location.pathname, location.hash);
+  if (target) location.replace(target);
+}
+
 function staggerWords(words, stepMs) {
   words.forEach((w, i) => { w.style.animationDelay = (0.6 + i * stepMs / 1000).toFixed(2) + 's'; });
 }

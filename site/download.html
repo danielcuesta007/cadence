@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Download Cadence for Mac</title>
+<meta name="description" content="Install Cadence with one line in Terminal, with Homebrew, or from the .dmg. No admin password, how to open it the first time, and how to check the file is genuine.">
+<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#ffffff">
+<link rel="canonical" href="https://cadence-dictation.pages.dev/download">
+<meta property="og:title" content="Download Cadence for Mac">
+<meta property="og:description" content="Install Cadence with one line in Terminal, with Homebrew, or from the .dmg. No admin password, how to open it the first time, and how to check the file is genuine.">
+<meta property="og:url" content="https://cadence-dictation.pages.dev/download">
+<meta property="og:image" content="https://cadence-dictation.pages.dev/icon-512-riso-v2.png">
+<meta property="og:image:alt" content="Cadence’s cobalt waveform with a pink centre bar">
+<meta property="og:site_name" content="Cadence">
+<meta name="twitter:card" content="summary">
+<link rel="icon" href="favicon-riso-v2.png" type="image/png" sizes="64x64">
+<link rel="icon" href="favicon-riso-v2.svg" type="image/svg+xml" sizes="any">
+<link rel="apple-touch-icon" href="apple-touch-icon-riso-v2.png" sizes="180x180">
+<link rel="stylesheet" href="style.css">
+<script src="site.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<!-- site:header -->
+<header class="site-header">
+  <a class="brand" href="index.html" aria-label="Cadence home"><img src="art/mark.svg" alt="" width="40" height="40"><span>Cadence</span></a>
+  <nav aria-label="Main navigation">
+    <a href="features.html">Features</a>
+    <a href="versions.html">Versions</a>
+    <a href="help.html">Help</a>
+    <a href="about.html">About</a>
+    <a class="nav-cta" href="download.html" aria-current="page">Download</a>
+  </nav>
+</header>
+<!-- /site:header -->
+
+<main id="main" tabindex="-1">
+<section class="page-head" aria-labelledby="page-title">
+  <p class="kicker">Download</p>
+  <h1 id="page-title">Get Cadence</h1>
+  <p class="lede">Free for Apple silicon Macs on macOS 14 Sonoma or later. The one-line install is the easiest: no security warning and no admin password.</p>
+</section>
+
+<section class="download" id="download" aria-labelledby="download-title">
+  <h2 id="download-title" class="visually-hidden">Install</h2>
+  <!-- releases:latest -->
+<p class="version-line">Latest: <b>Cadence 0.1.5</b>, released November 1, 2026. <a href="versions.html#v0-1-5">What’s new</a></p>
+<!-- /releases:latest -->
+  <div class="download-grid">
+    <div class="download-card">
+      <img src="icon-512.png" alt="The Cadence app icon" width="120" height="120">
+      <h3 class="install-title">Install with one line</h3>
+      <p class="small">Open <b>Terminal</b> (press ⌘ Space, type Terminal, press Return), paste this and press Return:</p>
+      <pre class="install-line"><code>curl -fsSL https://cadence-dictation.pages.dev/install.sh | sh</code></pre>
+      <button type="button" class="copy" data-copy="curl -fsSL https://cadence-dictation.pages.dev/install.sh | sh">Copy</button>
+      <p class="small">It downloads Cadence, checks it's the genuine file, puts it in Applications and opens it. No security warning, no admin password. Run the same line again to update. <a href="install.sh">Read the script first</a>, it's short.</p>
+      <p class="small">Apple silicon Mac · macOS 14 Sonoma or later · about 500 MB, because the speech model comes with it</p>
+      <p class="or"><span>or</span></p>
+      <a class="button ghost" href="https://github.com/danieljcuesta007/cadence/releases/latest/download/Cadence.dmg">Download Cadence.dmg</a>
+      <p class="small">Or with Homebrew. No admin password and no security warning either; it installs into your own Applications folder:</p>
+      <pre><code>brew tap danieljcuesta007/cadence https://github.com/danieljcuesta007/cadence
+brew install --cask --appdir=~/Applications cadence</code></pre>
+      <button type="button" class="copy" data-copy="brew tap danieljcuesta007/cadence https://github.com/danieljcuesta007/cadence &amp;&amp; brew install --cask --appdir=~/Applications cadence">Copy</button>
+    </div>
+    <div class="first-open">
+      <h3 id="why-warning">Used the .dmg? Why macOS asks you to confirm</h3>
+      <p>The one-line install and Homebrew skip all of this: each checks the file against its published checksum, then clears the flag macOS puts on downloaded apps. If you downloaded the .dmg in a browser instead, read on. (Dragging into Applications may ask for an administrator's password; without one, drag Cadence into the Applications folder inside your home folder.)</p>
+      <p>Apple only skips that warning for apps from developers who pay $99 a year for its Developer Program. Cadence is free, and staying free meant not passing that cost on to you. So it isn't notarized by Apple, and macOS will ask you to confirm once, the first time you open it. That was a deliberate choice, not an oversight.</p>
+      <h3>Open it the first time</h3>
+      <ol>
+        <li>Drag Cadence onto <b>Applications</b>, then eject the Cadence disk. Open Cadence from Applications, not from the disk image.</li>
+        <li>macOS says it can't check or verify the app. Click <b>Done</b> (or <b>OK</b>). Nothing is wrong with the file; this is the one-time notice for apps Apple hasn't notarized.</li>
+        <li>Open <b>System Settings › Privacy &amp; Security</b> and scroll down to <b>Security</b>. Next to "Cadence was blocked", click <b>Open Anyway</b>, then confirm with your password or Touch ID.</li>
+      </ol>
+      <p>On macOS 14 Sonoma there's a shortcut: Control-click Cadence in Applications, choose <b>Open</b>, then click <b>Open</b> again.</p>
+      <p>After that it opens normally. Cadence then asks for two permissions: <b>Microphone</b> to hear you and <b>Accessibility</b> to type into other apps.</p>
+      <h3 id="no-open-anyway">No Open Anyway button?</h3>
+      <p>It only shows for about an hour after macOS blocks the app, so open Cadence once more and look again. If it still isn't there, paste this into Terminal, press Return, then open Cadence normally:</p>
+      <pre><code>xattr -dr com.apple.quarantine /Applications/Cadence.app</code></pre>
+      <button type="button" class="copy" data-copy="xattr -dr com.apple.quarantine /Applications/Cadence.app">Copy</button>
+      <p>If Cadence is in the Applications folder inside your home folder, use <code>~/Applications/Cadence.app</code> instead. That removes the "downloaded from the internet" flag macOS puts on the app, and changes nothing else. Only run it on a download whose checksum matches the one below.</p>
+      <p>Cadence needs an Apple silicon Mac (M1 or newer) on macOS 14 Sonoma or later. On an older Mac it won't open, even after these steps.</p>
+      <h3>Want a desktop widget?</h3>
+      <p>It comes with the app. Open the Cadence menu in your Mac’s menu bar and turn on <b>Show Desktop Widget</b> to see today’s and this week’s words, streak, pace, time saved and all-time words. Click the widget’s logo to open Cadence. Drag it to place it; hide it anytime from the same menu or its close button. It stays on your desktop while Cadence is running, and remembers your choice next time.</p>
+      <h3>Check it's the real file</h3>
+      <p>Every release publishes its SHA-256 checksum. In Terminal, run <code>shasum -a 256 ~/Downloads/Cadence.dmg</code> and compare the result with:</p>
+      <!-- releases:checksum -->
+<pre><code data-sha>bfefc929442146a405dbe9d43ae862068cd51457a91ba714a742581578501d70</code></pre>
+<!-- /releases:checksum -->
+      <p>You can also read every line of the source on <a href="https://github.com/danieljcuesta007/cadence" rel="noopener">GitHub</a>, or build it yourself from there.</p>
+    </div>
+  </div>
+</section>
+
+<section class="manage" id="manage" aria-labelledby="manage-title">
+  <p class="kicker">Keep it current</p>
+  <h2 id="manage-title">Update, go back, or remove it.</h2>
+  <div class="manage-grid">
+    <div><h3>Update</h3><p>Run the same install line again. It replaces Cadence in place, keeps your history and settings, and checks the new file's checksum first. With Homebrew: <code>brew upgrade --cask cadence</code>.</p></div>
+    <div><h3>Which version do I have?</h3><p>Open the Cadence menu in the menu bar: the version is at the top. Every version and what changed is on the <a href="versions.html">version history</a>.</p></div>
+    <div><h3>Go back a version</h3><p>Each version's release page has its own Cadence.dmg and checksum. Quit Cadence, then install the older one over it. Your history stays put.</p></div>
+    <div><h3>Remove it</h3><p>Quit Cadence from its menu, then drag it from Applications to the Trash (or <code>brew uninstall --cask cadence</code>). Your history stays in <code>~/.cadence</code> until you delete that folder yourself.</p></div>
+  </div>
+</section>
+
+<p class="visually-hidden" role="status" data-copy-status></p>
+</main>
+
+<!-- site:footer -->
+<footer class="site-footer">
+  <div class="footer-brand"><img src="art/mark.svg" alt="" width="40" height="40"><p><strong>Cadence</strong><br><span class="footer-tagline">Your words. Your rhythm.</span><br>Built by DC Labs, a Daniel J. Cuesta company.</p></div>
+  <nav aria-label="Footer">
+    <a href="index.html">Home</a>
+    <a href="features.html">Features</a>
+    <a href="download.html">Download</a>
+    <a href="versions.html">Versions</a>
+    <a href="help.html">Help</a>
+    <a href="about.html">About</a>
+    <a href="legal.html#privacy">Privacy</a>
+    <a href="legal.html#license">License</a>
+    <a href="legal.html#credits">Credits</a>
+    <a href="https://github.com/danieljcuesta007/cadence" rel="noopener">Source</a>
+  </nav>
+  <p class="fineprint">© 2026 Daniel Cuesta. MIT licensed. Speech recognition by Whisper (OpenAI) via whisper.cpp, both MIT. Wispr Flow, Superwhisper, Apple and macOS belong to their owners. Cadence is not affiliated with or endorsed by them.</p>
+</footer>
+<!-- /site:footer -->
+</body>
+</html>
