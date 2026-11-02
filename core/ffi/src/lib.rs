@@ -303,7 +303,6 @@ fn asr_worker(
     noisy_room: Arc<AtomicBool>,
 ) {
     let mut engine = Some(engine);
-    warm_engine(engine.as_mut().expect("initial engine"));
 
     // Apply the shell's runtime overrides (language + dictionary prompt) to `e`. Called before
     // every decode and after a reload so the choices survive idle unload. Empty = leave as-is.
@@ -318,7 +317,10 @@ fn asr_worker(
         }
         e.set_noisy_room(noisy_room.load(Ordering::Relaxed));
     };
+    // Overrides first, so the warm-up runs the decode path the next dictation will use
+    // (noisy-room beam search included).
     apply_overrides(engine.as_mut().expect("initial engine"));
+    warm_engine(engine.as_mut().expect("initial engine"));
 
     let mut last_utt: Option<UtteranceId> = None;
     loop {
@@ -344,8 +346,8 @@ fn asr_worker(
                 let t = Instant::now();
                 match factory() {
                     Ok(mut e) => {
+                        apply_overrides(&mut e); // language, dictionary, noisy room survive unload
                         warm_engine(&mut e);
-                        apply_overrides(&mut e); // language + dictionary survive idle unload
                         debug_log(&format!("asr engine reloaded in {} ms", t.elapsed().as_millis()));
                         slot.insert(e)
                     }
@@ -1273,6 +1275,19 @@ mod tests {
             }
         }
 
+        /// Harness around a custom engine (and the factory an idle-unload reload would use).
+        fn with_asr(asr: Box<dyn AsrEngine + Send>, factory: AsrFactory) -> Self {
+            let (tx, rx) = mpsc::channel::<String>();
+            let tx = Box::new(tx);
+            let ctx = &*tx as *const mpsc::Sender<String> as *mut c_void;
+            let engine = Box::into_raw(Box::new(Engine::start(asr, factory, collect_cb, ctx)));
+            Self {
+                engine,
+                rx,
+                _tx: tx,
+            }
+        }
+
         /// Wait for the next effect whose `type` matches, collecting along the way.
         fn expect(&self, ty: &str) -> serde_json::Value {
             self.expect_timeout(ty, Duration::from_secs(3))
@@ -1364,21 +1379,10 @@ mod tests {
     }
 
     fn probe_harness() -> Harness {
-        let (tx, rx) = mpsc::channel::<String>();
-        let tx = Box::new(tx);
-        let ctx = &*tx as *const mpsc::Sender<String> as *mut c_void;
-        let factory: AsrFactory = Box::new(|| Ok(Box::new(NoisyProbeAsr { noisy: false }) as _));
-        let engine = Box::into_raw(Box::new(Engine::start(
+        Harness::with_asr(
             Box::new(NoisyProbeAsr { noisy: false }),
-            factory,
-            collect_cb,
-            ctx,
-        )));
-        Harness {
-            engine,
-            rx,
-            _tx: tx,
-        }
+            Box::new(|| Ok(Box::new(NoisyProbeAsr { noisy: false }) as _)),
+        )
     }
 
     fn dictate_once(h: &Harness) -> String {
@@ -1539,20 +1543,10 @@ mod tests {
         // the orchestrator thread, racing (and eating) instant-start audio pushed right
         // after trigger_down from the caller thread (found live: 8 000 of 56 235 samples
         // lost → mangled leading words).
-        let (tx, rx) = mpsc::channel::<String>();
-        let tx = Box::new(tx);
-        let ctx = &*tx as *const mpsc::Sender<String> as *mut c_void;
-        let engine = Box::into_raw(Box::new(Engine::start(
+        let h = Harness::with_asr(
             Box::new(CountingAsr),
             Box::new(|| Ok(Box::new(CountingAsr) as _)),
-            collect_cb,
-            ctx,
-        )));
-        let h = Harness {
-            engine,
-            rx,
-            _tx: tx,
-        };
+        );
         unsafe { cadence_engine_trigger_down(h.engine, false) };
         // Push immediately — do NOT wait for the start_capture effect.
         push_chunk(&h, 1600);

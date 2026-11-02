@@ -431,7 +431,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     self.router.log(
                         "core ready in \(ms) ms (core v\(CoreEngine.coreVersion)) — "
                             + "model=\(model) \(keys)"
-                            + (self.noisyRoom ? " noisy-room=on" : ""))
+                            + (self.noisyRoom ? " noisy-room=on" : "") + Self.beamOverrideNote)
                     // An .en model accepts a language argument and ignores it, so a Spanish
                     // binding on an English-only build fails silently and looks like a bad
                     // model rather than a bad package. Say so once, at launch.
@@ -545,10 +545,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         historyStore?.setFeature("hands_free", enabled: handsFree)
     }
     @objc func toggleNoisyRoom() {
+        // Between utterances only, like the gesture settings: a mid-dictation flip would
+        // decode the current utterance with a mode the user didn't start it in.
+        guard router.activeState == "idle" else { return }
         noisyRoom.toggle()
         historyStore?.setFeature("noisy_room", enabled: noisyRoom)
         engine?.setNoisyRoom(noisyRoom)  // next decode — no model reload
-        router.log("noisy room mode \(noisyRoom ? "on (beam 5)" : "off (greedy)")")
+        router.log("noisy room mode \(noisyRoom ? "on" : "off")\(Self.beamOverrideNote)")
+    }
+
+    /// `CADENCE_BEAM` (A/B runs) beats the menu in the core, so say so wherever the log names
+    /// the mode — otherwise a field log would name the wrong decoder.
+    static var beamOverrideNote: String {
+        guard let beam = ProcessInfo.processInfo.environment["CADENCE_BEAM"],
+              !beam.trimmingCharacters(in: .whitespaces).isEmpty else { return "" }
+        return " (CADENCE_BEAM=\(beam) overrides)"
     }
     @objc func toggleLiveInsertion() {
         guard router.activeState == "idle" else { return }
@@ -572,6 +583,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // Gesture and preview settings take effect between utterances.
         handsFreeItem.isEnabled = router.activeState == "idle"
         liveInsertionItem.isEnabled = router.activeState == "idle"
+        noisyRoomItem.isEnabled = router.activeState == "idle"
         desktopWidgetItem.state = desktopWidget.enabled ? .on : .off
         let front = NSWorkspace.shared.frontmostApplication?.localizedName
         menuFrontApp = front

@@ -1,0 +1,6 @@
+# Every cargo build (build-shell.sh, the noise bench, the WER harness, CI) compiles
+# whisper.cpp for the oldest macOS Cadence supports, not for the build Mac's own OS.
+# Without this, any build path that forgot to export it left a cache that linked newer-OS
+# objects into an app that claims 14.0 (qa/whisper-cache-guard.sh cleans up old ones).
+[env]
+MACOSX_DEPLOYMENT_TARGET = "14.0"
