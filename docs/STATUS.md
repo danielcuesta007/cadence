@@ -231,28 +231,55 @@ create --draft` + `gh release upload` (retry on 408) + publish → PR stamps to 
 wrangler pages deploy dist --project-name cadence-dictation --branch main`. After editing
 releases.json or the shared header/footer, run `node site/pages.mjs` (tests fail on stale pages).
 
-**Build environment:** ~/cadence-single-tap has the release Swift .build and
-target/release/libcadence_ffi.a but no CMake, so the Rust core cannot be rebuilt there
-(core unchanged since 027034e). Model: ~/cadence/models/artifacts/ggml-small.bin
-(pin 1be3a9b2…; pass CADENCE_BUNDLE_MODEL). Other worktrees (capture-latency,
-dictation-controls, readiness, ~/cadence) hold uncommitted research: do not reset or stash.
+**Build environment:** worktree ~/cadence-single-tap. Build with
+`CMAKE=$HOME/cadence/tools/cmake-local/cmake-3.31.7-macos-universal/CMake.app/Contents/bin/cmake
+qa/build-shell.sh`. `.cargo/config.toml` pins MACOSX_DEPLOYMENT_TARGET=14.0 for every cargo
+build, and `qa/whisper-cache-guard.sh` drops an old whisper.cpp cache built for another macOS.
+Model: ~/cadence/models/artifacts/ggml-small.bin (pin 1be3a9b2…; pass CADENCE_BUNDLE_MODEL).
+Other worktrees (capture-latency, dictation-controls, readiness, ~/cadence) hold uncommitted
+research: do not reset or stash them.
 
-**Step 15 is merged to dev (PR #85, d6dafd4) and installed locally as 0.1.6 (10), NOT
-released.** releases.json has 0.1.6 (10) as unreleased (site shows "Not released yet").
-Rollback for the local install: ~/Applications/Cadence.app.pre-v016-20261102T071257 (0.1.5 b9).
+**Steps 15 + 16 are merged to dev (PR #85, #89 → 9986bf2), NOT released; main is still
+3120677.** releases.json has 0.1.6 (11) as unreleased. 0.1.6 (11) is installed and running on
+Daniel's Mac (core ready 492 ms, model pin verified, minos 14.0, stable signer). Rollbacks:
+~/Applications/Cadence.app.pre-v016b11-20261102T095843 (0.1.6 b10) and
+~/Applications/Cadence.app.pre-v016-20261102T071257 (0.1.5 b9).
 
-**NEXT (Step 16):**
-1. Daniel dictates on 0.1.6 in a loud room: check the capture log line names a real mic (no
-   bare `CADefaultDeviceAggregate`), no `pin=FAILED`, and no "[...]"/"(music)" text typed.
-   Menu: Dictation Settings shows "Input: <mic> · <rate>".
-2. If good: release 0.1.6 the usual way (make-dmg → tag → gh release → PR stamps → dev→main
-   → site deploy).
-3. Next noise lever, by the numbers: background speech is the problem (babble 0 dB 17.8% WER),
-   music is not. Options: opt-in beam 5 "noisy room" mode (−22% errors at 0 dB, +1 clean
-   error, ~70% slower), and a consented live A/B of Voice Isolation (AUVoiceIO; keep the
-   background-dispose rule). Never claim real-room improvement without that measurement.
-Still pending from before: Daniel's real keyboard test of the 0.1.5 gesture; phone-width
-check of the site.
+## Step 16 — Noisy Room Mode, and a macOS 14 build fix (2026-11-02)
+
+- **Noisy Room Mode** (Dictation Settings → "Noisy Room Mode (Slower, Better with Voices
+  Nearby)"): off by default, can only be changed between dictations, saved as the
+  `noisy_room` feature. When it's on, the refined pass uses beam search width 5 (bench: about
+  22% fewer errors with chatter at speaker level, ~70% slower, one extra error on quiet audio).
+  The instant pass stays greedy. The overrides are applied before warm-up, so beam search is
+  warmed too. `CADENCE_BEAM` still overrides, and the log says so. The log shows
+  `noisy-room=on` on the core-ready line and records each toggle. DECISIONS #23.
+- **macOS 14 build fix:** this worktree's whisper.cpp cache had an empty deployment target. It
+  was built before the 14.0 pin and cargo never rebuilt it, so 0.1.6 (10) and earlier local
+  builds linked macOS 26.5 objects (about 1,200 linker warnings) into an app that claims 14.0.
+  Fixed at the root with `.cargo/config.toml [env]`, which was verified with a fresh build and
+  no exported variable. The guard cleans up old caches. 0.1.6 (11) builds with 0 such warnings.
+- The long-recording FFI test now allows 30 s per step (it timed out at load average ~33,
+  with or without the change).
+- Phone-width check of the site: **done**. The local build was rendered in real 320 px and
+  390 px iframes (desktop Chrome can't open a window that narrow, which explains the earlier
+  "would not resize"). Home, download, help, versions and features lay out cleanly. At 320 px
+  the header's Download pill sits off-screen in the sideways-scrolling nav row (by design);
+  the hero's "Download for Mac" button covers it.
+- Tests: Rust 124 (2 new, each watched failing on a planted bug), selftest-capture 28/28,
+  qa unittest (new `qa.test_whisper_cache_guard`, in CI), site 35/35. Reviewed by Claude
+  (8 findings, 7 fixed, 1 explained on the PR).
+
+**NEXT (Step 17):**
+1. Daniel dictates on 0.1.6 (11) somewhere loud, once with Noisy Room Mode off and once with
+   it on (same kind of room). Check ~/.cadence/logs/cadence.log: the real mic is named (no bare
+   `CADefaultDeviceAggregate`), there is no `pin=FAILED`, no "[...]"/"(music)" text was typed,
+   and the core-ready/toggle lines show which mode ran. Ask him whether on-mode felt worth the
+   wait.
+2. If that's clean and Daniel approves: release 0.1.6 (build 11) per "How releases work now".
+3. After that: a consented live A/B of Voice Isolation, or a background-speech gate (keep only
+   the loudest, closest talker). Never claim a real-room improvement without a measurement.
+Still pending: Daniel's real keyboard test of the 0.1.5 gesture.
 
 ## Favicon cleanup and public-download verification (2026-10-29)
 
