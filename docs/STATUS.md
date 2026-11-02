@@ -2,6 +2,25 @@
 
 Updated: 2026-11-01 · Phase: **1 (MVP spine)** · Blueprint: docs/CADENCE_BLUEPRINT.md
 
+## Step 12 — Easier Mac download without notarization (2026-11-01)
+
+Objective (Daniel): "i used the hombre version and it didnit work for me"; "make this
+download super easy" without paying for Apple notarization yet. Root causes reproduced:
+the cask installed into /Applications (root:admin 775; non-admin accounts fail), and
+Homebrew quarantines what it installs ("Homebrew Cask" flag), so the unnotarized app is
+blocked on first open. Fix (PR #77): documented `brew install --cask
+--appdir=~/Applications cadence`; relative `app` target so Homebrew remembers the folder;
+`postflight_steps` (old `postflight` fallback) clears quarantine after sha256 check;
+Homebrew 7 macOS deprecation fixed; README leads with the one-line installer (already
+no-admin, checksum, unquarantine). App version bumped to 0.1.5 (8).
+
+Verified: real Homebrew 7.0.11 installs from a throwaway tap into a not-yet-existing
+appdir (created, no warnings, quarantine cleared; control without the step stays
+quarantined); uninstall used the remembered folder; qa/test_cask.py 6/6 (3 fail on the old
+cask); qa OK; site 29/29. Users get the cask fix only once it reaches main (the tap reads
+main) and the next release stamps version/sha256. Only a browser .dmg download still needs
+Open Anyway; that remains until notarization, which Daniel has deferred.
+
 ## Step 11 — Forgiving hands-free double-tap (2026-11-01)
 
 Objective (Daniel): double-tapping Option "requires overly precise timing"; hesitant users
@@ -106,11 +125,10 @@ v0.1.3 download, app branding and widget instructions remain current.
 
 ## Handoff
 
-Step 11 (forgiving double-tap) is on PR #76 (fix/forgiving-double-tap → dev). Step 10
-merged to dev as baa6d5f (#75); no dev → main release PR yet; installed app is still
-0.1.4(7) from 742e224. Next: merge #76, release dev → main listing #75 and #76, then
-install locally (rollback ~/Applications/Cadence.app.pre-v014-20261101T184749) and have
-Daniel try the double-tap feel. After that: music/background-speech investigation (Step 10
+Steps 10-12 are on dev: #75 (baa6d5f), #76 (d2df562), #77 (Homebrew/no-admin download,
+version 0.1.5 (8)). Next: release dev → main listing #75-#77, install 0.1.5 locally
+(rollback ~/Applications/Cadence.app.pre-v014-20261101T184749), Daniel tries the double-
+tap feel, then make-dmg 0.1.5 + GitHub release + site deploy (stamps cask/install.sh). After that: music/background-speech investigation (Step 10
 notes). The HARD STOP receipt at the end of this file is historical.
 
 ## Favicon cleanup and public-download verification (2026-10-29)
