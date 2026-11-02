@@ -16,7 +16,7 @@ const js = await readFile('site.js', 'utf8');
 const tryJs = await readFile('try.js', 'utf8');
 const headers = await readFile('_headers', 'utf8');
 const cask = await readFile('../Casks/cadence.rb', 'utf8');
-const OUTBOUND = /^https:\/\/(github\.com\/danieljcuesta007\/cadence(\/|$)|danielcuesta007\.com$|addisuna\.com$|skeptic\.pages\.dev$|wisprflow\.ai\/(pricing|privacy)$|superwhisper\.com$|support\.apple\.com\/)/;
+const OUTBOUND = /^https:\/\/(github\.com\/danielcuesta007\/cadence(\/|$)|danielcuesta007\.com$|addisuna\.com$|skeptic\.pages\.dev$|wisprflow\.ai\/(pricing|privacy)$|superwhisper\.com$|support\.apple\.com\/)/;
 
 test('internal links and fragments resolve, IDs are unique per page', () => {
   for (const [name, page] of Object.entries(pages)) {
@@ -93,7 +93,7 @@ test('comparison is dated, sourced and fair', () => {
 });
 
 test('download button, cask and published checksum agree', () => {
-  assert.match(download, /href="https:\/\/github\.com\/danieljcuesta007\/cadence\/releases\/latest\/download\/Cadence\.dmg"/);
+  assert.match(download, /href="https:\/\/github\.com\/danielcuesta007\/cadence\/releases\/latest\/download\/Cadence\.dmg"/);
   const sha = download.match(/<code data-sha>([^<]*)<\/code>/)[1];
   assert.ok(cask.includes(`sha256 "${sha}"`), 'site and cask checksums differ');
   assert.match(cask, /releases\/download\/v#\{version\}\/Cadence\.dmg/);

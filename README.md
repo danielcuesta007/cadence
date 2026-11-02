@@ -106,14 +106,14 @@ Homebrew works too, also without admin rights or a warning (it installs into
 `~/Applications`, checks the sha256, then clears the download flag on Cadence alone):
 
 ```sh
-brew tap danieljcuesta007/cadence https://github.com/danieljcuesta007/cadence
+brew tap danielcuesta007/cadence https://github.com/danielcuesta007/cadence
 brew install --cask --appdir=~/Applications cadence
 ```
 
 Already installed with the one-line command? Keep updating with that same command
 rather than mixing in Homebrew, so you never end up with two copies.
 
-Or download `Cadence.dmg` from [the latest release](https://github.com/danieljcuesta007/cadence/releases/latest)
+Or download `Cadence.dmg` from [the latest release](https://github.com/danielcuesta007/cadence/releases/latest)
 or https://cadence-dictation.pages.dev. Cadence isn't notarized by Apple (that costs $99 a
 year, and Cadence is free), so an app from the .dmg needs **System Settings › Privacy &
 Security › Open Anyway** the first time (on macOS 14, Control-click the app › Open also

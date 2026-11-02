@@ -15,7 +15,7 @@ set -eu
 
 VERSION="0.1.5"
 SHA256="bfefc929442146a405dbe9d43ae862068cd51457a91ba714a742581578501d70"
-URL="${CADENCE_URL:-https://github.com/danieljcuesta007/cadence/releases/download/v$VERSION/Cadence.dmg}"  # override only for testing; the checksum still applies
+URL="${CADENCE_URL:-https://github.com/danielcuesta007/cadence/releases/download/v$VERSION/Cadence.dmg}"  # override only for testing; the checksum still applies
 BUNDLE_ID="dev.cadence.app"
 
 say() { printf 'cadence: %s\n' "$*"; }

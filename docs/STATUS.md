@@ -165,7 +165,7 @@ v0.1.3 download, app branding and widget instructions remain current.
 ## Handoff
 
 **State (2026-11-02):** Cadence **0.1.5 (9) is released** and live.
-- Release: https://github.com/danieljcuesta007/cadence/releases/tag/v0.1.5 (tag at 9b932aa),
+- Release: https://github.com/danielcuesta007/cadence/releases/tag/v0.1.5 (tag at 9b932aa),
   Cadence.dmg sha256 `bfefc929442146a405dbe9d43ae862068cd51457a91ba714a742581578501d70`
   (public latest-download verified to match).
 - main 9ca412e (release PR #82 = #79 gesture, #80 releases.json + multi-page site, #81 stamps);
