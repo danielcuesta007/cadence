@@ -7,6 +7,7 @@ source ~/.cargo/env
 # Match the minimum supported macOS instead of inheriting this build Mac’s OS.
 export MACOSX_DEPLOYMENT_TARGET=14.0
 export CMAKE="${CMAKE:-$PWD/tools/cmake-local/cmake-3.31.7-macos-universal/CMake.app/Contents/bin/cmake}"
+qa/whisper-cache-guard.sh target "$MACOSX_DEPLOYMENT_TARGET"
 cargo build --release -p cadence-ffi --features whisper
 # SwiftPM does not track the external staticlib: a fresh libcadence_ffi.a with unchanged
 # Swift sources would NOT relink, silently shipping the old core. Force the link step.

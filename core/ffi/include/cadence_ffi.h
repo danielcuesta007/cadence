@@ -47,6 +47,10 @@ void cadence_engine_set_language(CadenceEngine *engine, const char *lang);
  * whisper initial_prompt on the refined pass. "" clears it. Next decode; no reload. */
 void cadence_engine_set_vocabulary(CadenceEngine *engine, const char *terms);
 
+/* Noisy-room mode: beam search on the refined pass. Fewer errors with voices nearby, ~70%
+ * slower decode (Step 15 bench). Off by default. Next decode; no reload. */
+void cadence_engine_set_noisy_room(CadenceEngine *engine, bool on);
+
 /* Confirm capture is stopped and the final audio buffer has been pushed. The core
  * holds the ASR window open for this (500 ms grace) so no trailing words are lost. */
 void cadence_engine_capture_stopped(CadenceEngine *engine);
