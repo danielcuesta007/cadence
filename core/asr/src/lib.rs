@@ -390,6 +390,68 @@ const CAPTION_PHRASES: &[&str] = &[
     "no speech",
 ];
 
+/// Close the gap a removed caption leaves in `out`, given the input `chars` resuming at `next`;
+/// returns where copying continues. Only the gap is touched (issue #95), never the rest:
+/// - spaces/tabs on both sides of the caption go;
+/// - at the start of the text or of a line, punctuation the caption left behind goes too
+///   ("[Music], send it" → "send it", also after a line break) — but not a decimal point
+///   (".5 mg" stays: a dropped point is a 10x dose);
+/// - a caption alone on a line doesn't add line breaks: the run of breaks around it keeps the
+///   longer of its two sides (one break stays one, a paragraph break stays one paragraph break);
+/// - otherwise one space rejoins the halves, unless closing punctuation follows.
+fn close_caption_gap(out: &mut String, chars: &[char], mut next: usize) -> usize {
+    fn skip_blanks(chars: &[char], mut j: usize) -> usize {
+        while j < chars.len() && matches!(chars[j], ' ' | '\t') {
+            j += 1;
+        }
+        j
+    }
+    fn line_break_len(chars: &[char], j: usize) -> usize {
+        match (chars.get(j), chars.get(j + 1)) {
+            (Some('\r'), Some('\n')) => 2,
+            (Some('\n' | '\r'), _) => 1,
+            _ => 0,
+        }
+    }
+    while out.ends_with([' ', '\t']) {
+        out.pop();
+    }
+    next = skip_blanks(chars, next);
+    let at_line_start = out.is_empty() || out.ends_with(['\n', '\r']);
+    if at_line_start {
+        // Punctuation the caption orphaned at a line start; never a decimal point.
+        while let Some(&c) = chars.get(next) {
+            let decimal = c == '.' && chars.get(next + 1).is_some_and(|d| d.is_ascii_digit());
+            if !matches!(c, ',' | '.' | ';' | ':' | '!' | '?') || decimal {
+                break;
+            }
+            next = skip_blanks(chars, next + 1);
+        }
+        if !out.is_empty() {
+            // Keep the longer run of line breaks, not both runs.
+            let before = out.matches('\n').count() - out.trim_end_matches(['\n', '\r']).matches('\n').count();
+            let mut skipped = 0;
+            while skipped < before.max(1) {
+                let n = line_break_len(chars, next);
+                if n == 0 {
+                    break;
+                }
+                next += n;
+                skipped += 1;
+            }
+        }
+        return next;
+    }
+    let closes = matches!(
+        chars.get(next),
+        None | Some('\n' | '\r' | ',' | '.' | '!' | '?' | ';' | ':' | ')' | ']' | '}' | '\u{201D}' | '\u{2019}' | '\u{2026}')
+    );
+    if !closes {
+        out.push(' ');
+    }
+    next
+}
+
 /// Remove whisper's non-speech captions from a transcript (Step 15, noise in loud rooms).
 ///
 /// - `[...]`: whisper's caption convention ("[BLANK_AUDIO]", "[Music]", "[indistinct chatter]").
@@ -434,7 +496,6 @@ pub fn strip_non_speech(text: &str) -> String {
     let chars: Vec<char> = text.chars().collect();
     let mut out = String::with_capacity(text.len());
     let mut dropped = false;
-    let mut dropped_at_start = false;
     let mut i = 0;
     while i < chars.len() {
         let c = chars[i];
@@ -461,31 +522,8 @@ pub fn strip_non_speech(text: &str) -> String {
                 _ => None,
             };
             if let Some(len) = drop_len {
-                if out.trim().is_empty() {
-                    dropped_at_start = true;
-                }
                 dropped = true;
-                // Close only the gap this caption leaves (issue #95): spaces/tabs on both sides
-                // go, then one space rejoins the halves unless a line break or closing
-                // punctuation already separates them. Everything else stays as dictated.
-                while out.ends_with([' ', '\t']) {
-                    out.pop();
-                }
-                let mut j = i + len;
-                while j < chars.len() && matches!(chars[j], ' ' | '\t') {
-                    j += 1;
-                }
-                let next = chars.get(j).copied();
-                if out.ends_with('\n') && next == Some('\n') {
-                    j += 1; // "line one\n[Music]\nline two" keeps one line break, not two
-                }
-                let joins = !out.is_empty()
-                    && !out.ends_with('\n')
-                    && !matches!(next, None | Some('\n' | ',' | '.' | '!' | '?' | ';' | ':'));
-                if joins {
-                    out.push(' ');
-                }
-                i = j;
+                i = close_caption_gap(&mut out, &chars, i + len);
                 continue;
             }
         }
@@ -496,13 +534,7 @@ pub fn strip_non_speech(text: &str) -> String {
     if !dropped {
         return text.trim().to_string();
     }
-    let tidy = out.trim();
-    if dropped_at_start {
-        // "[Music], send it" → "send it": only when the caption itself opened the text.
-        tidy.trim_start_matches([',', '.', ';', ':']).trim().to_string()
-    } else {
-        tidy.to_string()
-    }
+    out.trim().to_string()
 }
 
 /// Beam width from a `CADENCE_BEAM` value: `Some(n)` for n >= 2 (capped at 8), `None` (greedy)
@@ -607,6 +639,14 @@ mod tests {
         assert_eq!(strip_non_speech("a  b [Music] c"), "a  b c");
         assert_eq!(strip_non_speech("first.\n[applause] Second"), "first.\nSecond");
         assert_eq!(strip_non_speech("[Music], send it"), "send it");
+        // Review of #97: line starts, paragraph breaks, CRLF, ! and ?, decimals, closers.
+        assert_eq!(strip_non_speech("para one\n\n[Music]\n\npara two"), "para one\n\npara two");
+        assert_eq!(strip_non_speech("Thanks.\n[Music], send it"), "Thanks.\nsend it");
+        assert_eq!(strip_non_speech("line one\r\n[Music]\r\nline two"), "line one\r\nline two");
+        assert_eq!(strip_non_speech("[Applause]! Great, thanks"), "Great, thanks");
+        assert_eq!(strip_non_speech("[Music] .5 mg twice daily"), ".5 mg twice daily");
+        assert_eq!(strip_non_speech("wait [Music]\u{2026}"), "wait\u{2026}");
+        assert_eq!(strip_non_speech("(see [Music])"), "(see)");
     }
 
     #[test]
