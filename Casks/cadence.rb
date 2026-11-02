@@ -3,8 +3,8 @@
 #   brew install --cask --appdir=~/Applications cadence   (no admin rights needed)
 # qa/make-dmg.sh fills in version and sha256 for each release.
 cask "cadence" do
-  version "0.1.3"
-  sha256 "63e315ea93b98916ac648cd7b1d70ad8cfe885bdf94ba031f3dea38cf57c31c1"
+  version "0.1.5"
+  sha256 "bfefc929442146a405dbe9d43ae862068cd51457a91ba714a742581578501d70"
 
   url "https://github.com/danieljcuesta007/cadence/releases/download/v#{version}/Cadence.dmg"
   name "Cadence"
