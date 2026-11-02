@@ -1,14 +1,15 @@
 //! ADR-0009: the free core builds and runs with zero extensions, and no core crate depends on
 //! an add-on. CI runs this with `cargo test --workspace`.
 
-use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+use std::process::Command;
 
 use cadence_asr::MockAsr;
 use cadence_cleanup::{Guarded, RuleCleanup};
 use cadence_extensions::{FinishedDictation, Registry};
 use cadence_ipc::{Mode, ProcessingPolicy};
 use cadence_orchestrator::{CollectSink, Pipeline};
+use serde_json::Value;
 
 fn tone(samples: usize) -> Vec<i16> {
     (0..samples)
@@ -38,70 +39,56 @@ fn a_full_dictation_runs_with_zero_extensions() {
     assert!(!text.is_empty());
     assert_eq!(sink.inserted, vec![text.clone()]);
     assert!(!report.privacy.expect("privacy record").data_left_device);
-
-    // Handing the result to an empty registry changes nothing.
-    registry.dictation_finished(&FinishedDictation {
-        text: &text,
-        language: Some("en"),
-        inserted: report.inserted,
-    });
+    // The registry is not wired into the pipeline yet (ADR-0009); until it is, this pins that the
+    // core alone delivers the text and that an empty registry reports no failures.
+    let failed = registry.dictation_finished(&FinishedDictation::new(&text, None, report.inserted));
+    assert!(failed.is_empty());
     assert_eq!(sink.inserted, vec![text]);
 }
 
-fn repo_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../..")
-        .canonicalize()
-        .unwrap()
-}
-
-/// Members listed in the workspace Cargo.toml.
-fn members(root: &Path) -> Vec<String> {
-    let manifest = fs::read_to_string(root.join("Cargo.toml")).unwrap();
-    let block = manifest
-        .split("members = [")
-        .nth(1)
-        .unwrap()
-        .split(']')
-        .next()
-        .unwrap();
-    block
-        .split(',')
-        .map(|m| m.trim().trim_matches('"').to_string())
-        .filter(|m| !m.is_empty())
-        .collect()
-}
-
+/// Every package in the resolved dependency graph (`cargo metadata`, so `[workspace.dependencies]`,
+/// `[patch]`, git, alternate registries and any TOML spelling are all covered) must be either a
+/// path crate inside this repo or a crates.io crate. A private add-on would be neither.
 #[test]
 fn no_core_crate_depends_on_an_add_on() {
-    let root = repo_root();
-    let members = members(&root);
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .canonicalize()
+        .unwrap();
+    let out = Command::new(env!("CARGO"))
+        .args(["metadata", "--format-version", "1", "--locked"])
+        .current_dir(&root)
+        .output()
+        .expect("cargo metadata runs");
     assert!(
-        members.iter().any(|m| m == "core/extensions"),
+        out.status.success(),
+        "cargo metadata: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let meta: Value = serde_json::from_slice(&out.stdout).unwrap();
+    let packages = meta["packages"].as_array().unwrap();
+    assert!(
+        packages.iter().any(|p| p["name"] == "cadence-extensions"),
         "the extensions crate is in the workspace"
     );
-    for member in &members {
-        let dir = root.join(member);
-        let manifest = fs::read_to_string(dir.join("Cargo.toml")).unwrap();
-        for line in manifest
-            .lines()
-            .map(str::trim)
-            .filter(|l| !l.starts_with('#'))
-        {
-            // Add-ons live in another repository; pulling one in would need a git or an outside path dependency.
-            assert!(!line.contains("git ="), "{member}: git dependency `{line}`");
-            if let Some(rest) = line.split("path = \"").nth(1) {
-                let target = dir
-                    .join(rest.split('"').next().unwrap())
+    for p in packages {
+        let name = p["name"].as_str().unwrap();
+        match p["source"].as_str() {
+            None => {
+                let manifest = Path::new(p["manifest_path"].as_str().unwrap())
                     .canonicalize()
-                    .unwrap_or_else(|_| {
-                        panic!("{member}: path dependency `{line}` does not exist")
-                    });
+                    .unwrap();
                 assert!(
-                    target.starts_with(&root),
-                    "{member}: path dependency outside the repo `{line}`"
+                    manifest.starts_with(&root),
+                    "{name}: path crate outside the repo ({})",
+                    manifest.display()
                 );
             }
+            Some(source) => assert!(
+                source == "registry+https://github.com/rust-lang/crates.io-index"
+                    || source.starts_with("sparse+https://index.crates.io/"),
+                "{name}: comes from {source}, not crates.io or this repo"
+            ),
         }
     }
 }

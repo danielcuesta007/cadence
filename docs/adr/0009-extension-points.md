@@ -26,11 +26,14 @@ A new crate, `core/extensions` (`cadence-extensions`), with **no dependencies**:
 Rules:
 
 1. **One-way dependency.** Add-ons depend on `cadence-extensions`; no workspace crate depends
-   on an add-on. A test reads every member's `Cargo.toml` and fails on a `git =` dependency or
-   a `path =` dependency outside the repo.
-2. **Observe only.** Hooks run after the text is delivered. They cannot change the text, block
-   insertion or add latency to the dictation path. A missing or failing add-on never degrades
-   the free app.
+   on an add-on. A test runs `cargo metadata` and fails if any package in the resolved graph
+   is neither a path crate inside this repo nor from crates.io (so git, `[patch]`,
+   `[workspace.dependencies]` and alternate registries are all caught).
+2. **Observe only.** Hooks run after the text is delivered and cannot change it. The registry
+   contains a panicking add-on (`catch_unwind`), still runs the others, and returns the failed
+   ids for the shell to log. When wired in, hooks run off the dictation thread so a slow add-on
+   cannot add latency. `FinishedDictation` is `#[non_exhaustive]`, so fields can be added
+   without breaking add-ons. Ids are unique ignoring ASCII case.
 3. **Zero extensions is the tested default.** A test runs a full dictation (PCM to orchestrator
    to ASR to cleanup to insertion) with an empty registry, in `cargo test --workspace` on CI.
 4. **Privacy stays in the core.** Nothing here opens a connection, reads an account or checks a

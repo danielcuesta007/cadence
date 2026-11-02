@@ -14,3 +14,4 @@ cadence-asr = { path = "../asr" }
 cadence-cleanup = { path = "../cleanup" }
 cadence-ipc = { path = "../ipc" }
 cadence-orchestrator = { path = "../orchestrator" }
+serde_json = { workspace = true }

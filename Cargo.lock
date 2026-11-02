@@ -73,6 +73,7 @@ dependencies = [
  "cadence-cleanup",
  "cadence-ipc",
  "cadence-orchestrator",
+ "serde_json",
 ]
 
 [[package]]
