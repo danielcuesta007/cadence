@@ -237,17 +237,22 @@ target/release/libcadence_ffi.a but no CMake, so the Rust core cannot be rebuilt
 (pin 1be3a9b2…; pass CADENCE_BUNDLE_MODEL). Other worktrees (capture-latency,
 dictation-controls, readiness, ~/cadence) hold uncommitted research: do not reset or stash.
 
-**NEXT (Step 15): background noise in loud rooms.** Daniel (verbatim): "music is always
-playing in my earbuds but ther was also some in the speaker saround me, i was in nthe
-cafeteria". Likely cause: the built-in mic (preferBuiltInMic default) hears room speakers and
-nearby voices; earbud music itself is probably not captured. Check the live route first,
-then: read ~/brain/memory/cadence-audio-asr.md and AudioCapture.swift; design a safe
-voice-processing (AUVoiceIO) start/stop lifecycle (teardown froze the app before; keep Voice
-Isolation experimental/off until proven); run consented A/B (same lines, quiet vs
-cafeteria-like noise) and measure word errors; consider VAD/energy gating against background
-speech. Never claim improved filtering without that measurement. Also pending: Daniel's real
-keyboard test of the 0.1.5 gesture; phone-width visual check of the site (Chrome window
-would not resize).
+**Step 15 is merged to dev (PR #85, d6dafd4) and installed locally as 0.1.6 (10), NOT
+released.** releases.json has 0.1.6 (10) as unreleased (site shows "Not released yet").
+Rollback for the local install: ~/Applications/Cadence.app.pre-v016-20261102T071257 (0.1.5 b9).
+
+**NEXT (Step 16):**
+1. Daniel dictates on 0.1.6 in a loud room: check the capture log line names a real mic (no
+   bare `CADefaultDeviceAggregate`), no `pin=FAILED`, and no "[...]"/"(music)" text typed.
+   Menu: Dictation Settings shows "Input: <mic> · <rate>".
+2. If good: release 0.1.6 the usual way (make-dmg → tag → gh release → PR stamps → dev→main
+   → site deploy).
+3. Next noise lever, by the numbers: background speech is the problem (babble 0 dB 17.8% WER),
+   music is not. Options: opt-in beam 5 "noisy room" mode (−22% errors at 0 dB, +1 clean
+   error, ~70% slower), and a consented live A/B of Voice Isolation (AUVoiceIO; keep the
+   background-dispose rule). Never claim real-room improvement without that measurement.
+Still pending from before: Daniel's real keyboard test of the 0.1.5 gesture; phone-width
+check of the site.
 
 ## Favicon cleanup and public-download verification (2026-10-29)
 
