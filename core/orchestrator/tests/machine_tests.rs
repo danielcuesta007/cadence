@@ -348,6 +348,10 @@ fn silence_produces_no_insertion_and_gentle_feedback() {
         }
     )));
     assert!(!has(&fx, |e| matches!(e, Effect::RunInsertion { .. })));
+    assert!(
+        has(&fx, |e| matches!(e, Effect::LogNote { message } if message.contains("nothing usable heard"))),
+        "an empty result must leave a trace in cadence.log"
+    );
 }
 
 #[test]
