@@ -18,8 +18,8 @@ Phones keep the page links as a scrollable row (they used to be hidden). New: co
 table, update/rollback/remove section, troubleshooting (including noisy rooms, honestly
 marked as being worked on).
 
-Verified: site tests 33/33 (shared layout, freshness against releases.json, validation of
-bad lists, stamping), qa 19/19 (make-dmg with releases.json, version default, wrong app
+Verified: site tests 35/35 (shared layout, freshness against releases.json, validation of
+bad lists, stamping, old-link forwarding), qa 19/19 (make-dmg with releases.json, version default, wrong app
 version refused); checked in Chrome on desktop. Not checked: real phone width (the window
 would not resize).
 
@@ -164,11 +164,42 @@ v0.1.3 download, app branding and widget instructions remain current.
 
 ## Handoff
 
-Steps 10-12 are on dev: #75 (baa6d5f), #76 (d2df562), #77 (Homebrew/no-admin download,
-version 0.1.5 (8)). Next: release dev → main listing #75-#77, install 0.1.5 locally
-(rollback ~/Applications/Cadence.app.pre-v014-20261101T184749), Daniel tries the double-
-tap feel, then make-dmg 0.1.5 + GitHub release + site deploy (stamps cask/install.sh). After that: music/background-speech investigation (Step 10
-notes). The HARD STOP receipt at the end of this file is historical.
+**State (2026-11-02):** Cadence **0.1.5 (9) is released** and live.
+- Release: https://github.com/danieljcuesta007/cadence/releases/tag/v0.1.5 (tag at 9b932aa),
+  Cadence.dmg sha256 `bfefc929442146a405dbe9d43ae862068cd51457a91ba714a742581578501d70`
+  (public latest-download verified to match).
+- main 9ca412e (release PR #82 = #79 gesture, #80 releases.json + multi-page site, #81 stamps);
+  dev kept. Site deployed from main to https://cadence-dictation.pages.dev (all 7 pages,
+  install.sh and the cask pin 0.1.5).
+- Installed on Daniel's Mac: 0.1.5 (9), doctor clean. Rollbacks:
+  ~/Applications/Cadence.app.pre-v015b9-20261101T220210 (0.1.5 build 8) and older
+  pre-v015/pre-v014 bundles.
+
+**How releases work now:** add an entry at the top of `releases.json` (version, build, title,
+highlights, date/sha256 null) → `qa/build-shell.sh` → `qa/package-app.sh` (reads version)
+→ `qa/make-dmg.sh` (stamps releases.json, cask, install.sh, site pages) → tag + `gh release
+create --draft` + `gh release upload` (retry on 408) + publish → PR stamps to dev → dev→main →
+`cd site && node build.mjs && CLOUDFLARE_ACCOUNT_ID=<personal account, see private notes> npx
+wrangler pages deploy dist --project-name cadence-dictation --branch main`. After editing
+releases.json or the shared header/footer, run `node site/pages.mjs` (tests fail on stale pages).
+
+**Build environment:** ~/cadence-single-tap has the release Swift .build and
+target/release/libcadence_ffi.a but no CMake, so the Rust core cannot be rebuilt there
+(core unchanged since 027034e). Model: ~/cadence/models/artifacts/ggml-small.bin
+(pin 1be3a9b2…; pass CADENCE_BUNDLE_MODEL). Other worktrees (capture-latency,
+dictation-controls, readiness, ~/cadence) hold uncommitted research: do not reset or stash.
+
+**NEXT (Step 15): background noise in loud rooms.** Daniel (verbatim): "music is always
+playing in my earbuds but ther was also some in the speaker saround me, i was in nthe
+cafeteria". Likely cause: the built-in mic (preferBuiltInMic default) hears room speakers and
+nearby voices; earbud music itself is probably not captured. Check the live route first,
+then: read ~/brain/memory/cadence-audio-asr.md and AudioCapture.swift; design a safe
+voice-processing (AUVoiceIO) start/stop lifecycle (teardown froze the app before; keep Voice
+Isolation experimental/off until proven); run consented A/B (same lines, quiet vs
+cafeteria-like noise) and measure word errors; consider VAD/energy gating against background
+speech. Never claim improved filtering without that measurement. Also pending: Daniel's real
+keyboard test of the 0.1.5 gesture; phone-width visual check of the site (Chrome window
+would not resize).
 
 ## Favicon cleanup and public-download verification (2026-10-29)
 
