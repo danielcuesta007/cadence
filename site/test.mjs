@@ -455,7 +455,8 @@ test('every page shares one header and footer, and marks where you are', () => {
     const nav = page.match(/<nav aria-label="Main navigation">[\s\S]*?<\/nav>/)[0];
     for (const target of ['features.html', 'versions.html', 'help.html', 'about.html', 'download.html']) assert.ok(nav.includes(`href="${target}"`), `${name} links ${target}`);
     if (name !== 'legal.html') assert.equal((page.match(/aria-current="page"/g) || []).length, 1, `${name} marks itself once`);
-    assert.match(page, new RegExp(`<link rel="canonical" href="https://cadence-dictation\\.pages\\.dev/${name === 'index.html' ? '' : name.replace('.', '\\.')}">`), `${name} canonical`);
+    // Cloudflare Pages serves /download.html as a redirect to /download: canonicals name the served URL.
+    assert.ok(page.includes(`<link rel="canonical" href="https://cadence-dictation.pages.dev/${name === 'index.html' ? '' : name.replace('.html', '')}">`), `${name} canonical`);
   }
   // Phones keep the page links (a scrollable row) instead of hiding them.
   assert.doesNotMatch(css, /\.site-header nav a:not\(\.nav-cta\) \{ display:none; \}/);
@@ -465,7 +466,7 @@ test('every page shares one header and footer, and marks where you are', () => {
 
 test('the pages are exactly what pages.mjs renders from releases.json (nothing stale)', async () => {
   const fresh = await render(releases);
-  for (const [name, page] of Object.entries(fresh)) assert.equal(pages[name], page, `${name} is stale: run node build.mjs`);
+  for (const [name, page] of Object.entries(fresh)) assert.equal(pages[name], page, `${name} is stale: run node pages.mjs`);
 });
 
 test('releases.json is a valid newest-first list, and the app and installers follow it', async () => {
@@ -501,4 +502,26 @@ test('releases.json refuses mistakes and stamps only the version on top', () => 
   const out = stamp(d, top, 'b'.repeat(64), '2026-11-02');
   assert.equal(out.releases[0].sha256, 'b'.repeat(64)); assert.equal(latest(out.releases).version, top);
   assert.match(timeline(out.releases), /November 2, 2026/);
+});
+
+test('links shared before the split still land on the right page', () => {
+  const ctx = { document: { querySelectorAll: () => [], querySelector: () => null }, navigator: {} };
+  runInNewContext(js + '\nthis.movedSection = movedSection;', ctx);
+  assert.equal(ctx.movedSection('/', '#download'), 'download.html');
+  assert.equal(ctx.movedSection('/index.html', '#why-warning'), 'download.html#why-warning');
+  assert.equal(ctx.movedSection('/', '#compare'), 'features.html#compare');
+  assert.equal(ctx.movedSection('/', '#faq'), 'help.html');
+  assert.equal(ctx.movedSection('/', '#try'), null, 'sections still on the home page stay');
+  assert.equal(ctx.movedSection('/download.html', '#download'), null, 'only the home page forwards');
+  const redirected = [];
+  runInNewContext(js, { location: { pathname: '/', hash: '#creator', replace: u => redirected.push(u) }, document: { querySelectorAll: () => [], querySelector: () => null }, navigator: {} });
+  assert.deepEqual(redirected, ['about.html']);
+});
+
+test('a released version can never be re-stamped with a different checksum', () => {
+  const d = JSON.parse(JSON.stringify(releases));
+  const top = d.releases[0];
+  top.date = '2026-11-02'; top.sha256 = 'c'.repeat(64);
+  assert.throws(() => stamp(JSON.parse(JSON.stringify(d)), top.version, 'd'.repeat(64), '2026-11-05'), /already recorded/);
+  assert.doesNotThrow(() => stamp(JSON.parse(JSON.stringify(d)), top.version, 'c'.repeat(64), '2026-11-02'));
 });

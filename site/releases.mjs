@@ -19,6 +19,8 @@ export function humanDate(day) {
 const anchor = v => 'v' + v.replace(/\./g, '-');
 export const isReleased = r => Boolean(r.date && r.sha256);
 
+const cmp = (a, b) => { const x = a.split('.').map(Number), y = b.split('.').map(Number); return x[0] - y[0] || x[1] - y[1] || x[2] - y[2]; };
+
 export function validate(data) {
   const list = data.releases;
   if (!Array.isArray(list) || !list.length) throw new Error('releases.json has no releases');
@@ -34,7 +36,6 @@ export function validate(data) {
     if ((r.date === null) !== (r.sha256 === null)) throw new Error(`${r.version}: date and sha256 are set together`);
     if (i > 0) {
       const prev = list[i - 1];
-      const cmp = (a, b) => { const x = a.split('.').map(Number), y = b.split('.').map(Number); return x[0] - y[0] || x[1] - y[1] || x[2] - y[2]; };
       if (cmp(prev.version, r.version) <= 0) throw new Error(`${prev.version} must be newer than ${r.version} (newest first)`);
       if (prev.build <= r.build) throw new Error(`${prev.version}: build ${prev.build} must be above ${r.build}`);
       if (!isReleased(r)) throw new Error(`${r.version}: only the newest entry may be unreleased`);
@@ -75,9 +76,9 @@ export const BLOCKS = {
   'download.html': { latest: latestLine, checksum },
 };
 
-export function fill(html, name, inner, file = 'page') {
-  const re = new RegExp(`(<!-- releases:${name} -->)[\\s\\S]*?(<!-- /releases:${name} -->)`);
-  if (!re.test(html)) throw new Error(`${file} has no releases:${name} block`);
+export function fill(html, name, inner, file = 'page', prefix = 'releases') {
+  const re = new RegExp(`(<!-- ${prefix}:${name} -->)[\\s\\S]*?(<!-- /${prefix}:${name} -->)`);
+  if (!re.test(html)) throw new Error(`${file} has no ${prefix}:${name} block`);
   return html.replace(re, (_, a, b) => `${a}\n${inner}\n${b}`);
 }
 
@@ -85,6 +86,9 @@ export function stamp(data, version, sha, day) {
   const top = data.releases[0];
   if (top.version !== version) throw new Error(`releases.json starts with ${top.version}, not ${version}; add ${version} at the top first`);
   if (!/^[0-9a-f]{64}$/.test(sha)) throw new Error('sha256 must be 64 hex characters');
+  // A published version's checksum is what every installer verifies against; a rebuild must
+  // never silently replace it. Bump to a new version (or restore releases.json) instead.
+  if (top.sha256 && top.sha256 !== sha) throw new Error(`${version} is already recorded with sha256 ${top.sha256}; add a new version instead of rebuilding a released one`);
   top.sha256 = sha;
   top.date = day;
   validate(data);

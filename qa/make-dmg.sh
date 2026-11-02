@@ -63,9 +63,10 @@ rm -f "$DMG"
 hdiutil create -quiet -volname "Cadence" -srcfolder "$STAGE" -format UDZO -fs HFS+ -ov "$DMG"
 SHA=$(shasum -a 256 "$DMG" | cut -d' ' -f1)
 
+# Record the release first: if releases.json refuses it, nothing else has changed yet.
+node site/pages.mjs stamp "$VERSION" "$SHA" "${CADENCE_RELEASE_DATE:-}"
 sed -i '' -e "s|^  version \".*\"|  version \"$VERSION\"|" -e "s|^  sha256 \".*\"|  sha256 \"$SHA\"|" Casks/cadence.rb
 sed -i '' -e "s|^VERSION=\".*\"|VERSION=\"$VERSION\"|" -e "s|^SHA256=\".*\"|SHA256=\"$SHA\"|" site/install.sh
-node site/pages.mjs stamp "$VERSION" "$SHA" "${CADENCE_RELEASE_DATE:-}"
 
 cat <<MSG
 Built $DMG ($(du -h "$DMG" | cut -f1))
@@ -73,6 +74,8 @@ SHA-256 $SHA
 Updated releases.json, Casks/cadence.rb, site/install.sh and the site's version pages.
 
 To publish (each step is outward-facing; do it on purpose):
+  Publish the GitHub release BEFORE deploying the site: the site now names $VERSION as
+  latest and links its release page and download.
   1. git tag v$VERSION && git push origin v$VERSION
   2. gh release create v$VERSION $DMG --title "Cadence $VERSION" --notes-file <notes>
      (keep the asset name Cadence.dmg: the site links to releases/latest/download/Cadence.dmg)
