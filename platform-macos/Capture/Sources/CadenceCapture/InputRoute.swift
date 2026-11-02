@@ -102,46 +102,55 @@ public enum RoutePolicy {
     /// Which mic capture should pin, or nil to follow the system default input.
     ///
     /// - preferBuiltIn ("Always Use Built-in Microphone", default OFF): the built-in mic.
-    /// - otherwise: a connected headset mic — Bluetooth (AirPods and other earbuds) or USB —
-    ///   because with earbuds in, the mic at your mouth beats a laptop mic across the table in a
-    ///   loud room (Daniel, 2 Nov 2026: "choose the headphone mic if there are earbuds in").
-    ///   Bluetooth comes first: plugged-in USB audio is more often an interface than a headset.
-    ///   Virtual, aggregate and iPhone (Continuity) inputs are never picked on their own.
-    ///   No headset → nil: the system default (normally the built-in mic or a wired headset).
-    public static func pinTarget(preferBuiltIn: Bool, devices: [InputCandidate]) -> UInt32? {
-        func first(_ transports: [UInt32]) -> UInt32? {
-            devices.first { transports.contains($0.transport) }?.id
+    /// - the macOS default input is a Bluetooth mic: that one (the user's own pick among
+    ///   several Bluetooth devices).
+    /// - the default is some other non-built-in mic (USB podcast mic, display, webcam, wired):
+    ///   nil — the user chose it in System Settings, so follow it.
+    /// - the default is the built-in mic (or unknown) and earbuds are connected: the first
+    ///   Bluetooth mic — with earbuds in, the mic at your mouth beats a laptop mic across the
+    ///   table in a loud room (Daniel, 2 Nov 2026: "choose the headphone mic if there are
+    ///   earbuds in"). USB is never treated as a headset: displays/webcams/docks report USB.
+    /// iPhone (Continuity), virtual and aggregate inputs are never picked.
+    public static func pinTarget(preferBuiltIn: Bool, devices: [InputCandidate],
+                                 defaultInput: UInt32?) -> UInt32? {
+        let bluetooth = [kAudioDeviceTransportTypeBluetooth, kAudioDeviceTransportTypeBluetoothLE]
+        if preferBuiltIn {
+            return devices.first { $0.transport == kAudioDeviceTransportTypeBuiltIn }?.id
         }
-        if preferBuiltIn { return first([kAudioDeviceTransportTypeBuiltIn]) }
-        return first([kAudioDeviceTransportTypeBluetooth, kAudioDeviceTransportTypeBluetoothLE])
-            ?? first([kAudioDeviceTransportTypeUSB])
+        if let def = defaultInput, let d = devices.first(where: { $0.id == def }) {
+            if bluetooth.contains(d.transport) { return d.id }
+            if d.transport != kAudioDeviceTransportTypeBuiltIn { return nil }
+        }
+        return devices.first { bluetooth.contains($0.transport) }?.id
     }
 
     /// Should the warm path re-apply the built-in pin before starting?
     ///
-    /// - wanted: the user's "Use Built-in Microphone" preference.
-    /// - builtIn: the built-in mic's CoreAudio id (nil when there is none).
+    /// - target: the mic RoutePolicy.pinTarget chose (nil = follow the system default).
+    /// - unpinNeeded: capture is still explicitly bound to a mic that is no longer the target
+    ///   (e.g. earbuds pinned, then disconnected) and must be handed back to the default.
     /// - currentInputs: what capture takes input from — the device, or an aggregate's input
     ///   members (voice processing always wraps the mic in an aggregate, so comparing the device
     ///   id alone would call a held pin "drifted" forever).
     /// - current / refusedFor: the current device id (0 = unreadable) and the device that was
     ///   current right after the last refused pin. A refused route is not retried on every key
     ///   press (each retry tears the warm tap down); a new route gets a fresh attempt.
-    public static func needsRepin(wanted: Bool, builtIn: UInt32?, currentInputs: [UInt32],
-                                  current: UInt32, refusedFor: UInt32?) -> Bool {
-        guard wanted, let builtIn else { return false }
-        if currentInputs.contains(builtIn) { return false }
+    public static func needsRepin(target: UInt32?, unpinNeeded: Bool = false,
+                                  currentInputs: [UInt32], current: UInt32,
+                                  refusedFor: UInt32?) -> Bool {
+        guard let target else { return unpinNeeded }
+        if currentInputs.contains(target) { return false }
         if let refusedFor, refusedFor == current { return false }
         return true
     }
 
     /// Classify a pin attempt from the set call's status and what capture reads back afterwards.
-    public static func pinResult(setStatus: Int32, builtIn: UInt32, readBackInputs: [UInt32])
+    public static func pinResult(setStatus: Int32, target: UInt32, readBackInputs: [UInt32])
         -> PinState
     {
         if setStatus != 0 { return .failed(setStatus) }
         // A clean status that does not read back means the unit silently kept its old device.
-        return readBackInputs.contains(builtIn) ? .held : .failed(-1)
+        return readBackInputs.contains(target) ? .held : .failed(-1)
     }
 
     /// "bluetooth" / "built-in" / "usb" / … from a CoreAudio transport FourCC.
