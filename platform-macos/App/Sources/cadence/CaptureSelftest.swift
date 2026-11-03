@@ -65,6 +65,14 @@ func runCaptureSelftest() -> Int32 {
           && InputRoute(deviceName: "Mic", sampleRate: 48000, voiceProcessing: false, pin: .pending)
               .description == "Mic @ 48000 Hz")
 
+    // Bluetooth mic grace (3 Nov 2026): only a Bluetooth mic, only when turned on.
+    check("grace_holds_bluetooth_mic", RoutePolicy.holdsMicOpen(grace: 30, transport: "bluetooth"))
+    check("grace_off_by_default", !RoutePolicy.holdsMicOpen(grace: 0, transport: "bluetooth"))
+    check("grace_never_holds_built_in", !RoutePolicy.holdsMicOpen(grace: 30, transport: "built-in"))
+    check("grace_never_holds_usb", !RoutePolicy.holdsMicOpen(grace: 30, transport: "usb"))
+    check("grace_ble_name_is_bluetooth", RoutePolicy.transportName(kAudioDeviceTransportTypeBluetoothLE) == "bluetooth")
+    check("grace_default_is_30s", AudioCapture.defaultBluetoothGrace == 30 && AudioCapture().bluetoothGrace == 0)
+
     // Mic picker (2 Nov 2026: earbuds in → their mic; "Always Use Built-in" forces the Mac's).
     let builtInDev = InputCandidate(id: 10, transport: kAudioDeviceTransportTypeBuiltIn)
     let airpods = InputCandidate(id: 20, transport: kAudioDeviceTransportTypeBluetooth)

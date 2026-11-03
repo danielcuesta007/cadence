@@ -154,6 +154,12 @@ public enum RoutePolicy {
     }
 
     /// "bluetooth" / "built-in" / "usb" / … from a CoreAudio transport FourCC.
+    /// Hold the mic open after a dictation only for a Bluetooth mic, and only when the user
+    /// turned the grace period on. A built-in or USB mic never needs it (no profile switch).
+    public static func holdsMicOpen(grace: TimeInterval, transport: String) -> Bool {
+        grace > 0 && transport == "bluetooth"
+    }
+
     public static func transportName(_ fourCC: UInt32) -> String {
         switch fourCC {
         case kAudioDeviceTransportTypeBuiltIn: return "built-in"

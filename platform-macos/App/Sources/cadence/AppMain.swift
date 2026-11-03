@@ -56,6 +56,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     let verbatimItem = NSMenuItem(title: "Verbatim (No Cleanup)", action: nil, keyEquivalent: "v")
     let builtInMicItem = NSMenuItem(
         title: "Always Use Built-in Microphone", action: nil, keyEquivalent: "")
+    let micGraceItem = NSMenuItem(
+        title: "Keep AirPods Mic Open 30 s (Smoother Music)", action: nil, keyEquivalent: "")
     let voiceIsolationItem = NSMenuItem(
         title: "Voice Isolation (Experimental)", action: nil, keyEquivalent: "")
     let retentionItem = NSMenuItem(title: "Keep History", action: nil, keyEquivalent: "")
@@ -100,6 +102,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// AppleScript/⌘Q quits bypass our menu action — free the engine here too, or ggml's
     /// Metal atexit teardown aborts (see quit()).
     func applicationWillTerminate(_ notification: Notification) {
+        capture.endGrace()
         engine = nil
         lifecycle.stop(reason: terminationReason)
     }
@@ -206,6 +209,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         builtInMicItem.action = #selector(toggleBuiltInMic)
         builtInMicItem.target = self
         menu.addItem(builtInMicItem)
+        // Releasing an AirPods mic flips them back to music mode (a glitch at insert); this
+        // holds a Bluetooth mic open between dictations. Off by default: the mic indicator
+        // stays on for those 30 s, though no audio is used or kept.
+        micGraceItem.action = #selector(toggleMicGrace)
+        micGraceItem.target = self
+        menu.addItem(micGraceItem)
         // Apple AEC + noise suppression on capture (café/office ambience otherwise leaks
         // into transcripts). Fallback logic in AudioCapture keeps it from ever blocking.
         voiceIsolationItem.action = #selector(toggleVoiceIsolation)
@@ -302,6 +311,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         router.retainAudioEnabled = { [weak self] in self?.retainAudio ?? false }
         capture.preferBuiltInMic = store?.preferBuiltInMic ?? false
+        capture.bluetoothGrace = (store?.bluetoothMicGrace ?? false) ? AudioCapture.defaultBluetoothGrace : 0
         capture.voiceIsolation = store?.voiceIsolation ?? true
         router.engine = { [weak self] in self?.engine }
         router.statusUpdate = { [weak self] state in
@@ -612,6 +622,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         loginItem.isEnabled = Bundle.main.bundlePath.hasSuffix(".app")
         loginItem.state = SMAppService.mainApp.status == .enabled ? .on : .off
         builtInMicItem.state = capture.preferBuiltInMic ? .on : .off
+        micGraceItem.state = capture.bluetoothGrace > 0 ? .on : .off
         voiceIsolationItem.state = capture.voiceIsolation ? .on : .off
         for item in languageItem.submenu?.items ?? [] {
             item.state = (item.representedObject as? String) == dictationLanguage ? .on : .off
@@ -711,6 +722,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         capture.setPreferBuiltInMic(on)
         historyStore?.setPreferBuiltInMic(on)
         router.log("always built-in mic → \(on ? "on" : "off (headset mic when connected)")")
+    }
+
+    @objc func toggleMicGrace() {
+        let on = capture.bluetoothGrace == 0
+        capture.bluetoothGrace = on ? AudioCapture.defaultBluetoothGrace : 0
+        if !on { capture.endGrace() }
+        historyStore?.setBluetoothMicGrace(on)
+        router.log("keep AirPods mic open → \(on ? "on (\(Int(AudioCapture.defaultBluetoothGrace)) s)" : "off")")
     }
 
     @objc func toggleVoiceIsolation() {
