@@ -335,7 +335,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         router.retainAudioEnabled = { [weak self] in self?.retainAudio ?? false }
         capture.preferBuiltInMic = store?.preferBuiltInMic ?? false
-        capture.bluetoothGrace = (store?.bluetoothMicGrace ?? false) ? AudioCapture.defaultBluetoothGrace : 0
+        capture.bluetoothGrace = (store?.featureEnabled("bluetooth_mic_grace", default: false) ?? false) ? AudioCapture.defaultBluetoothGrace : 0
         capture.voiceIsolation = store?.voiceIsolation ?? true
         updatePendingHistoryUI(warn: false)
         router.engine = { [weak self] in self?.engine }
@@ -759,7 +759,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let on = capture.bluetoothGrace == 0
         capture.bluetoothGrace = on ? AudioCapture.defaultBluetoothGrace : 0
         if !on { capture.endGrace() }
-        historyStore?.setBluetoothMicGrace(on)
+        historyStore?.setFeature("bluetooth_mic_grace", enabled: on)
         router.log("keep AirPods mic open → \(on ? "on (\(Int(AudioCapture.defaultBluetoothGrace)) s)" : "off")")
     }
 
