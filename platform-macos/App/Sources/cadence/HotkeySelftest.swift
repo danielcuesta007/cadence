@@ -395,6 +395,14 @@ func runHotkeySelftest() -> Int32 {
         _ = lh.resolve(key: .primary, down: true, otherModifiers: false, now: 70, handsFree: true)
         check("long_hold_tap_finishes", lh.resolve(key: .primary, down: false, otherModifiers: false,
               now: 70.1, handsFree: true) == .stop(.primary) && !lh.latched && !lh.latchedByHold)
+        // The monitor judges a late release at the same instant: holdElapsed first, then
+        // resolve. A release just past 10 s with the timer not yet fired must still latch.
+        var late = PTTArbiter(timing: .following(doubleClickInterval: 0.5))
+        check("following_keeps_long_hold", late.timing.longHold == PTTTiming.standard.longHold)
+        _ = late.resolve(key: .primary, down: true, otherModifiers: false, now: 0, handsFree: true)
+        check("late_release_still_latches", late.holdElapsed(now: 10.3)
+              && late.resolve(key: .primary, down: false, otherModifiers: false, now: 10.3,
+                              handsFree: true) == .ignore && late.latched)
         var short = PTTArbiter()
         _ = short.resolve(key: .primary, down: true, otherModifiers: false, now: 0, handsFree: true)
         check("short_hold_still_push_to_talk", short.resolve(key: .primary, down: false,

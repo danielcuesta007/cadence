@@ -67,7 +67,8 @@ public struct PTTTiming: Equatable {
     public static func following(doubleClickInterval: TimeInterval) -> PTTTiming {
         guard doubleClickInterval.isFinite, doubleClickInterval > 0 else { return .standard }
         let gap = min(max(doubleClickInterval + extraGap, gapRange.lowerBound), gapRange.upperBound)
-        return PTTTiming(maxTapDuration: standard.maxTapDuration, interTapGap: gap)
+        return PTTTiming(maxTapDuration: standard.maxTapDuration, interTapGap: gap,
+                         longHold: standard.longHold)
     }
 }
 
@@ -104,8 +105,6 @@ public struct PTTArbiter {
     private var physicalDown = false
     /// The press that latched hands-free is still down; its release must not finish.
     private var latchPress = false
-    /// This gesture follows the hands-free rules (Settings › hands-free on).
-    private var gestureHandsFree = false
     /// Hands-free was latched by holding past `timing.longHold`, not by a double tap.
     public private(set) var latchedByHold = false
     /// Read at the start of each gesture by the monitor; fixed for the gesture's lifetime.
@@ -132,7 +131,6 @@ public struct PTTArbiter {
         }
         if down {
             guard !otherModifiers, !physicalDown, held == nil || held == key else { return .ignore }
-            gestureHandsFree = true
             physicalDown = true
             pressedAt = now
             // Strictly before the deadline: at the deadline itself `expire` has already
@@ -176,8 +174,9 @@ public struct PTTArbiter {
     }
 
     /// When a still-held first press will turn into long dictation; nil if it cannot.
+    /// `physicalDown` is only ever set on the hands-free path, so hands-free off never latches.
     public var longHoldAt: TimeInterval? {
-        guard gestureHandsFree, physicalDown, held != nil, !latched, deadline == nil else { return nil }
+        guard physicalDown, held != nil, !latched, deadline == nil else { return nil }
         return pressedAt + timing.longHold
     }
 
@@ -203,7 +202,6 @@ public struct PTTArbiter {
     public mutating func reset() {
         latchPress = false
         latchedByHold = false
-        gestureHandsFree = false
         held = nil
         latched = false
         deadline = nil
@@ -252,7 +250,8 @@ public final class HotkeyMonitor {
     public var secondaryEnabled: () -> Bool = { true }
 
     public var handsFreeEnabled: () -> Bool = { true }
-    public var onHandsFreeChanged: ((Bool) -> Void)?
+    /// (on, byHold): byHold is true when a long hold, not a double tap, latched it.
+    public var onHandsFreeChanged: ((Bool, Bool) -> Void)?
     /// True while a first tap waits for its second (recording is already running).
     public var onTapPendingChanged: ((Bool) -> Void)?
     /// Read once per gesture, so a settings change never reshapes a gesture in flight.
@@ -271,7 +270,7 @@ public final class HotkeyMonitor {
         holdTimer?.invalidate()
         holdTimer = nil
         arbiter.reset()
-        onHandsFreeChanged?(false)
+        onHandsFreeChanged?(false, false)
         publishTapPending()
     }
 
@@ -366,6 +365,7 @@ public final class HotkeyMonitor {
         // Retract rather than transcribe silence. Esc above has already been handled.
         if type == .keyDown, arbiter.held != nil, Self.typingRetracts(keyCode: keyCode) {
             fire(arbiter.retract(now: ProcessInfo.processInfo.systemUptime))
+            scheduleLongHold()
             publishTapPending()
         }
         let repeating = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
@@ -446,11 +446,14 @@ public final class HotkeyMonitor {
         // on the deadline could be neither a second tap nor a fresh start.
         let now = ProcessInfo.processInfo.systemUptime
         fire(arbiter.expire(now: now))
+        // Same instant: a hold past longHold latches before its release is judged, even if
+        // the hold timer has not fired yet (busy run loop), so the release cannot finish it.
+        if arbiter.holdElapsed(now: now) { onHandsFreeChanged?(true, true) }
         let wasLatched = arbiter.latched
         if down, arbiter.held == nil { arbiter.timing = timing() }
         fire(arbiter.resolve(key: key, down: down, otherModifiers: others,
                              now: now, handsFree: handsFreeEnabled()))
-        if wasLatched != arbiter.latched { onHandsFreeChanged?(arbiter.latched) }
+        if wasLatched != arbiter.latched { onHandsFreeChanged?(arbiter.latched, arbiter.latchedByHold) }
         scheduleExpiry()
         scheduleLongHold()
         publishTapPending()
@@ -465,7 +468,7 @@ public final class HotkeyMonitor {
                           repeats: false) { [weak self] _ in
             guard let self else { return }
             if self.arbiter.holdElapsed(now: ProcessInfo.processInfo.systemUptime) {
-                self.onHandsFreeChanged?(true)
+                self.onHandsFreeChanged?(true, true)
             } else {
                 self.scheduleLongHold()
             }
@@ -497,6 +500,7 @@ public final class HotkeyMonitor {
         let chordMods: CGEventFlags = [.maskCommand, .maskControl, .maskShift]
         guard !flags.intersection(chordMods).isEmpty else { return }
         fire(arbiter.retract(now: ProcessInfo.processInfo.systemUptime))
+        scheduleLongHold()
         publishTapPending()
     }
 

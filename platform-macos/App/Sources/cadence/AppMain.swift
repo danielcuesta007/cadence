@@ -26,7 +26,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var noisyRoom = false
     var liveInsertion = false
     let copyDictationsItem = NSMenuItem(title: "Keep Latest Dictation on Clipboard", action: nil, keyEquivalent: "")
-    let handsFreeItem = NSMenuItem(title: "Double-Tap to Start Hands-Free", action: nil, keyEquivalent: "")
+    let handsFreeItem = NSMenuItem(title: "Hands-Free: Double-Tap or Hold 10 s", action: nil, keyEquivalent: "")
     // Step 16: beam search for rooms with other people talking. Off by default — it measured
     // ~22 % fewer errors with chatter at speaker level but ~70 % more decode time.
     let noisyRoomItem = NSMenuItem(title: "Noisy Room Mode (Slower, Better with Voices Nearby)", action: nil, keyEquivalent: "")
@@ -289,10 +289,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         router.copyDictationsEnabled = { [weak self] in self?.copyDictations ?? true }
         router.liveInsertionEnabled = { [weak self] in self?.liveInsertion ?? false }
         hotkeys.handsFreeEnabled = { [weak self] in self?.handsFree ?? true }
-        hotkeys.onHandsFreeChanged = { [weak self] on in
+        hotkeys.onHandsFreeChanged = { [weak self] on, byHold in
             guard let self else { return }
-            self.overlay.setHandsFree(on, longHold: self.hotkeys.latchedByHold)
-            if on, self.hotkeys.latchedByHold { self.router.log("long dictation latched by hold") }
+            self.overlay.setHandsFree(on, longHold: byHold)
+            if on, byHold { self.router.log("long dictation latched by hold") }
         }
         hotkeys.onTapPendingChanged = { [weak self] on in self?.overlay.setTapPending(on) }
         Appearance.apply(store?.appearance ?? .system)
@@ -633,7 +633,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         var parts = ["Hold Right-Option (\(name(primary)))"]
         if secondary != "off" { parts.append("Left-Option (\(name(secondary)))") }
-        if handsFree { parts.append("Double-tap (or tap, then hold) for hands-free · tap once to finish") }
+        if handsFree { parts.append("Double-tap, or hold 10 s, for hands-free · tap once to finish") }
         parts.append("Esc cancels")
         parts.append("⌃⌥⌘Z undoes")
         return parts.joined(separator: " · ")

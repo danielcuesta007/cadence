@@ -126,7 +126,8 @@ public final class OverlayHUD {
         fadeWork = nil
         let glyph: String
         switch state {
-        case "listening": glyph = Self.listeningGlyph(handsFree: handsFree, tapPending: tapPending)
+        case "listening": glyph = Self.listeningGlyph(handsFree: handsFree, tapPending: tapPending,
+                                                      longHold: longHold)
         case "thinking": glyph = "✦ thinking"
         case "inserting": glyph = "↳ inserting"
         case "done": glyph = "✓ done"
