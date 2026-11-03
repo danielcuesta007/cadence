@@ -21,7 +21,8 @@ UX spec + roadmap). Progress: [`docs/STATUS.md`](docs/STATUS.md) · Decisions:
 Hold either Option key to dictate as before. For long dictation, go **hands-free**: tap
 the same Option key twice, or tap it once and then press and hold. Either way the pill says
 **hands-free** and you can let go. Tap that key once to finish and insert (finishing never
-presses Return).
+presses Return). Or just keep holding: after 10 seconds the pill says **long dictation on**,
+you can let go and keep talking, and one tap finishes.
 
 It's forgiving on purpose. The first tap just needs to be short (under about half a
 second), and the second press can come up to 0.7 s later: your macOS double-click speed
@@ -29,7 +30,7 @@ second), and the second press can come up to 0.7 s later: your macOS double-clic
 After the first tap the pill says **tap again for hands-free**, so you can see it
 registered. Right-Option and Left-Option keep their own language assignments. Escape
 cancels. A single short tap finishes when that pause runs out; releasing a normal hold
-finishes immediately. Option shortcuts still work.
+(under 10 seconds) finishes immediately. Option shortcuts still work.
 Recordings automatically finish at 29 minutes so the audio buffer cannot silently discard
 the beginning. Streaming previews copy only the recent eight seconds of audio.
 
@@ -45,7 +46,7 @@ Settings:
   Turn it off to preserve your previous clipboard after successful insertion. Failed
   insertion still copies the text for recovery. A newer clipboard write during the paste
   transaction is preserved.
-- **Double-Tap to Start Hands-Free** (on by default): turn off for hold-only controls.
+- **Hands-Free: Double-Tap or Hold 10 s** (on by default): turn off for hold-only controls (no double-tap, and a hold of any length finishes on release).
 - **Noisy Room Mode** (off by default): a more careful decode for rooms with other people talking. In testing it made about a fifth fewer mistakes with chatter as loud as you, but results take roughly 70% longer.
 - **Experimental Features → Live Insertion (Supported Fields)** (off by default): provisional
   words appear in readable, editable Accessibility fields while you speak; the final
