@@ -38,11 +38,21 @@ public enum PTTKey: String {
 public struct PTTTiming: Equatable {
     public var maxTapDuration: TimeInterval
     public var interTapGap: TimeInterval
+    /// Holding the first press this long switches to long dictation: it latches hands-free,
+    /// so the hand can let go and one tap finishes. Daniel (3 Nov 2026): "i want to hold to
+    /// trigger long dication afet a certian amount i want th epill to show 'long dication
+    /// enabled'". Only while hands-free is on in Settings.
+    public var longHold: TimeInterval
 
-    public init(maxTapDuration: TimeInterval, interTapGap: TimeInterval) {
+    public init(maxTapDuration: TimeInterval, interTapGap: TimeInterval,
+                longHold: TimeInterval = PTTTiming.defaultLongHold) {
         self.maxTapDuration = maxTapDuration
         self.interTapGap = interTapGap
+        self.longHold = longHold
     }
+
+    /// Longer than almost any quick dictation, so short notes never latch by accident.
+    public static let defaultLongHold: TimeInterval = 10
 
     /// Daniel asked twice for more forgiveness (1 Nov 2026), so the pause allowed between
     /// taps is the macOS double-click speed plus `extraGap`: 0.7 s at the 0.5 s default.
@@ -94,6 +104,10 @@ public struct PTTArbiter {
     private var physicalDown = false
     /// The press that latched hands-free is still down; its release must not finish.
     private var latchPress = false
+    /// This gesture follows the hands-free rules (Settings › hands-free on).
+    private var gestureHandsFree = false
+    /// Hands-free was latched by holding past `timing.longHold`, not by a double tap.
+    public private(set) var latchedByHold = false
     /// Read at the start of each gesture by the monitor; fixed for the gesture's lifetime.
     public var timing: PTTTiming
 
@@ -118,6 +132,7 @@ public struct PTTArbiter {
         }
         if down {
             guard !otherModifiers, !physicalDown, held == nil || held == key else { return .ignore }
+            gestureHandsFree = true
             physicalDown = true
             pressedAt = now
             // Strictly before the deadline: at the deadline itself `expire` has already
@@ -160,6 +175,23 @@ public struct PTTArbiter {
         return .stop(key)
     }
 
+    /// When a still-held first press will turn into long dictation; nil if it cannot.
+    public var longHoldAt: TimeInterval? {
+        guard gestureHandsFree, physicalDown, held != nil, !latched, deadline == nil else { return nil }
+        return pressedAt + timing.longHold
+    }
+
+    /// The first press has been held past `timing.longHold`: latch hands-free so letting go
+    /// keeps recording. Returns true when it latched. The press is still down, so its release
+    /// is swallowed like a tap-then-hold second press.
+    public mutating func holdElapsed(now: TimeInterval) -> Bool {
+        guard let at = longHoldAt, now >= at else { return false }
+        latched = true
+        latchPress = true
+        latchedByHold = true
+        return true
+    }
+
     public mutating func expire(now: TimeInterval) -> Decision {
         guard let deadline, now >= deadline else { return .ignore }
         self.deadline = nil
@@ -170,6 +202,8 @@ public struct PTTArbiter {
 
     public mutating func reset() {
         latchPress = false
+        latchedByHold = false
+        gestureHandsFree = false
         held = nil
         latched = false
         deadline = nil
@@ -226,11 +260,16 @@ public final class HotkeyMonitor {
         PTTTiming.following(doubleClickInterval: NSEvent.doubleClickInterval)
     }
     private var releaseTimer: Timer?
+    private var holdTimer: Timer?
     private var tapPending = false
+    /// The current hands-free latch came from a long hold (the pill says "long dictation").
+    public var latchedByHold: Bool { arbiter.latchedByHold }
 
     public func resetGesture() {
         releaseTimer?.invalidate()
         releaseTimer = nil
+        holdTimer?.invalidate()
+        holdTimer = nil
         arbiter.reset()
         onHandsFreeChanged?(false)
         publishTapPending()
@@ -413,7 +452,26 @@ public final class HotkeyMonitor {
                              now: now, handsFree: handsFreeEnabled()))
         if wasLatched != arbiter.latched { onHandsFreeChanged?(arbiter.latched) }
         scheduleExpiry()
+        scheduleLongHold()
         publishTapPending()
+    }
+
+    /// Arms the long-dictation latch for a held first press. Re-arms if it fires early.
+    private func scheduleLongHold() {
+        holdTimer?.invalidate()
+        holdTimer = nil
+        guard let at = arbiter.longHoldAt else { return }
+        let timer = Timer(timeInterval: max(0, at - ProcessInfo.processInfo.systemUptime),
+                          repeats: false) { [weak self] _ in
+            guard let self else { return }
+            if self.arbiter.holdElapsed(now: ProcessInfo.processInfo.systemUptime) {
+                self.onHandsFreeChanged?(true)
+            } else {
+                self.scheduleLongHold()
+            }
+        }
+        holdTimer = timer
+        RunLoop.main.add(timer, forMode: .common)
     }
 
     /// Arms the lone-tap stop. If the timer ever fires before the deadline (run-loop

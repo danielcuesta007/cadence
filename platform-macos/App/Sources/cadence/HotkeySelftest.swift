@@ -380,6 +380,42 @@ func runHotkeySelftest() -> Int32 {
         check("hands_free_off_never_latches", g3.resolve(key: .primary, down: true, otherModifiers: false,
               now: 0.3) == .start(.primary) && !g3.latched)
 
+        // Long dictation (3 Nov 2026): a first press held past timing.longHold latches
+        // hands-free, so letting go keeps recording and one tap finishes.
+        var lh = PTTArbiter()
+        check("long_hold_starts", lh.resolve(key: .primary, down: true, otherModifiers: false,
+              now: 0, handsFree: true) == .start(.primary))
+        check("long_hold_armed_at_10s", lh.longHoldAt == PTTTiming.defaultLongHold)
+        check("long_hold_not_before_time", !lh.holdElapsed(now: 9.9) && !lh.latched)
+        check("long_hold_latches", lh.holdElapsed(now: 10) && lh.latched && lh.latchedByHold)
+        check("long_hold_release_keeps_recording", lh.resolve(key: .primary, down: false,
+              otherModifiers: false, now: 12, handsFree: true) == .ignore && lh.latched)
+        check("long_hold_never_expires", lh.expire(now: 60) == .ignore && lh.latched)
+        check("long_hold_typing_keeps_recording", lh.retract(now: 30) == .ignore && lh.latched)
+        _ = lh.resolve(key: .primary, down: true, otherModifiers: false, now: 70, handsFree: true)
+        check("long_hold_tap_finishes", lh.resolve(key: .primary, down: false, otherModifiers: false,
+              now: 70.1, handsFree: true) == .stop(.primary) && !lh.latched && !lh.latchedByHold)
+        var short = PTTArbiter()
+        _ = short.resolve(key: .primary, down: true, otherModifiers: false, now: 0, handsFree: true)
+        check("short_hold_still_push_to_talk", short.resolve(key: .primary, down: false,
+              otherModifiers: false, now: 4, handsFree: true) == .stop(.primary)
+              && short.longHoldAt == nil && !short.holdElapsed(now: 20))
+        var off = PTTArbiter()
+        _ = off.resolve(key: .primary, down: true, otherModifiers: false, now: 0, handsFree: false)
+        check("long_hold_off_with_hands_free_off", off.longHoldAt == nil && !off.holdElapsed(now: 30)
+              && off.resolve(key: .primary, down: false, otherModifiers: false, now: 30) == .stop(.primary))
+        var tapped = PTTArbiter()
+        _ = tapped.resolve(key: .primary, down: true, otherModifiers: false, now: 0, handsFree: true)
+        _ = tapped.resolve(key: .primary, down: false, otherModifiers: false, now: 0.1, handsFree: true)
+        check("tap_pending_is_not_long_hold", tapped.longHoldAt == nil)
+        _ = tapped.resolve(key: .primary, down: true, otherModifiers: false, now: 0.3, handsFree: true)
+        check("double_tap_latch_is_not_long_hold", tapped.latched && !tapped.latchedByHold
+              && tapped.longHoldAt == nil)
+        check("pill_long_dictation", OverlayHUD.listeningGlyph(handsFree: true, tapPending: false,
+              longHold: true) == "● long dictation on · let go, tap to finish")
+        check("pill_long_needs_hands_free", OverlayHUD.listeningGlyph(handsFree: false, tapPending: false,
+              longHold: true) == "● listening")
+
         check("pill_pending_hint", OverlayHUD.listeningGlyph(handsFree: false, tapPending: true)
               .contains("tap again"))
         check("pill_hands_free_wins", OverlayHUD.listeningGlyph(handsFree: true, tapPending: true)

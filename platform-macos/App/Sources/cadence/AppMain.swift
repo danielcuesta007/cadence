@@ -289,7 +289,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         router.copyDictationsEnabled = { [weak self] in self?.copyDictations ?? true }
         router.liveInsertionEnabled = { [weak self] in self?.liveInsertion ?? false }
         hotkeys.handsFreeEnabled = { [weak self] in self?.handsFree ?? true }
-        hotkeys.onHandsFreeChanged = { [weak self] on in self?.overlay.setHandsFree(on) }
+        hotkeys.onHandsFreeChanged = { [weak self] on in
+            guard let self else { return }
+            self.overlay.setHandsFree(on, longHold: self.hotkeys.latchedByHold)
+            if on, self.hotkeys.latchedByHold { self.router.log("long dictation latched by hold") }
+        }
         hotkeys.onTapPendingChanged = { [weak self] on in self?.overlay.setTapPending(on) }
         Appearance.apply(store?.appearance ?? .system)
         Appearance.persist = { [weak self] choice in

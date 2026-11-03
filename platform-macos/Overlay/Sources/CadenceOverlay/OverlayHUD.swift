@@ -21,13 +21,16 @@ public final class OverlayHUD {
     private var fadeWork: DispatchWorkItem?
     private var handsFree = false
     private var tapPending = false
-    public static func listeningGlyph(handsFree: Bool, tapPending: Bool) -> String {
+    private var longHold = false
+    public static func listeningGlyph(handsFree: Bool, tapPending: Bool, longHold: Bool = false) -> String {
+        if handsFree && longHold { return "● long dictation on · let go, tap to finish" }
         if handsFree { return "● hands-free · tap to finish" }
         if tapPending { return "● listening · tap again for hands-free" }
         return "● listening"
     }
-    public func setHandsFree(_ on: Bool) {
+    public func setHandsFree(_ on: Bool, longHold: Bool = false) {
         handsFree = on
+        self.longHold = on && longHold
         if on { tapPending = false }
         refreshListeningGlyph()
     }
@@ -37,7 +40,8 @@ public final class OverlayHUD {
     }
     private func refreshListeningGlyph() {
         if !levelLabel.isHidden {
-            glyphLabel.stringValue = Self.listeningGlyph(handsFree: handsFree, tapPending: tapPending)
+            glyphLabel.stringValue = Self.listeningGlyph(handsFree: handsFree, tapPending: tapPending,
+                                                         longHold: longHold)
             fitAndPosition()
         }
     }
