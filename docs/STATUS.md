@@ -22,8 +22,12 @@ guards fixed it and the test now passes. All failure tests used isolated
 stores; no live history, keys or legacy files were modified.
 
 ARTIFACT: Cadence0.1.8(14), SHA-256 `df13078cf20d17af1529e452858252fa295d94d4a716154b24c7986fc84a71a4`.
-Cask, installer and generated site pages agree. NEXT: reviewed feature→dev→main,
-GitHub release before Cloudflare site deployment, then verify public bytes.
+RELEASED: #108 squash→dev `8d08849`; reviewed #109 merge→main `c05040d`, dev retained.
+GitHub v0.1.8 published before production deployment `65f5fe94`. Downloaded the
+public latest DMG: exact same SHA-256. All 28 live site files match dist bytes;
+Cask, one-line installer, download page and release digest agree. Feature and
+release CI pass. Full receipt: dist/privacy-release-receipt.json (generated).
+No active source handoff; implementation and publication are complete.
 No real speech/first-install or macOS14 hardware test was performed. The installed
 AirPods experiment remains a separate acceptance gate (#106), not part of this
 public release. Crash/forced quit can lose unsaved RAM recovery; prior plaintext
@@ -243,6 +247,15 @@ with no horizontal overflow. This is a website/documentation update; verified
 v0.1.3 download, app branding and widget instructions remain current.
 
 ## Handoff
+
+_No active source handoff._ Step 19 is released and live (see receipt above).
+Installed local app remains 0.1.7(13) with the separate #106 AirPods experiment;
+Daniel has not answered whether to replace it with stable 0.1.8. Do not merge
+#106 without its A/B acceptance or overwrite the installed experiment silently.
+Source/history/keys and backups were preserved. Real voice and first install
+on another account/macOS14 hardware remain manual acceptance, not completed tests.
+
+### Historical handoffs (superseded by Step 19 above)
 
 **State (2026-11-03):** Cadence **0.1.7 (13) is released** and live (Daniel: "publish pls
 yes u have all permissions to work!", 2 Nov 2026).
