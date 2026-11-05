@@ -21,9 +21,11 @@ final class EffectRouter {
     var insertionGuard: (() -> String?)?
     var uiQueue: DispatchQueue?
     var earconsEnabled = true
+    /// Diagnostic output boundary for isolated privacy checks.
+    var diagnosticLog: ((String) -> Void)?
     /// Selftest hook: fires on fade-to-idle with the last inserted text (nil = none).
     var onIdle: ((String?) -> Void)?
-    /// Encrypted store (§24); nil (keychain/open failure) keeps the JSONL stand-in.
+    /// Encrypted store (§24); nil (keychain/open failure) keeps unsaved words in memory.
     var historyStore: HistoryStore?
     /// §24 retained audio: opt-in check, read at capture start (the composition root caches
     /// the setting; default off — never accumulate audio the user didn't ask to keep).
@@ -153,12 +155,12 @@ final class EffectRouter {
     static let debug = ProcessInfo.processInfo.environment["CADENCE_DEBUG"] != nil
 
     func route(_ json: String) {
-        if Self.debug { log("effect: \(json)") }
+        if Self.debug { log("effect received (payload omitted)") }
         guard let data = json.data(using: .utf8),
             let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
             let type = obj["type"] as? String
         else {
-            log("unroutable effect: \(json)")
+            log("unroutable effect (payload omitted)")
             return
         }
         switch type {
@@ -273,7 +275,7 @@ final class EffectRouter {
             // Content-free by contract (core/ipc LogNote): counts and rule names only.
             if let message = obj["message"] as? String { log(message) }
         default:
-            log("unknown effect type: \(type)")
+            log("unknown effect type (payload omitted)")
         }
     }
 
@@ -418,6 +420,7 @@ final class EffectRouter {
     }
 
     func log(_ msg: String) {
+        if let diagnosticLog { diagnosticLog(msg); return }
         FileHandle.standardError.write(Data("[cadence] \(msg)\n".utf8))
         LogFile.append(msg)
     }
@@ -461,30 +464,18 @@ enum LogFile {
     }
 }
 
-/// Stand-in for core/store (§24): append-only JSONL so no utterance is ever unrecoverable
-/// (AC-22 baseline until the encrypted SQLite store lands).
+/// Legacy path is read/import-only. New recovery records are never written in plaintext.
 enum History {
     static let url = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent(".cadence/history.jsonl")
 
-    static func append(record: [String: Any], text: String?, metrics: [String: Any] = [:]) {
+    static func append(record: [String: Any], text: String?, metrics: [String: Any] = [:],
+                       pending: PendingHistory = .shared) {
         var rec = record
         rec["text"] = text
         rec["ts"] = ISO8601DateFormatter().string(from: Date())
         rec.merge(metrics) { current, _ in current }
-        guard let data = try? JSONSerialization.data(withJSONObject: rec),
-            var line = String(data: data, encoding: .utf8)
-        else { return }
-        line += "\n"
-        let dir = url.deletingLastPathComponent()
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        if let handle = try? FileHandle(forWritingTo: url) {
-            defer { try? handle.close() }
-            _ = try? handle.seekToEnd()
-            try? handle.write(contentsOf: Data(line.utf8))
-        } else {
-            try? Data(line.utf8).write(to: url)
-        }
+        pending.append(rec)
     }
 }
 

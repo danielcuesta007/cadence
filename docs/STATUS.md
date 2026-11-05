@@ -2,6 +2,38 @@
 
 Updated: 2026-11-03 · Phase: **1 (MVP spine)** · Blueprint: docs/CADENCE_BLUEPRINT.md
 
+## Step 19 — Private history failure recovery (2026-11-05)
+
+Objective (Daniel): “can we wrap up that work pls?” Finish the paused privacy
+fallback fix against current dev, preserving the installed AirPods A/B build.
+
+DONE: failed history writes stay in RAM with visible copy/encrypted retry,
+normal-quit discard confirmation, no transcript payloads in diagnostic traces,
+legacy archive preservation, accurate privacy disclosure, and recovery of all
+cached settings when reopening the store. Prepared 0.1.8/build14 with the
+multilingual model, stable signer and macOS14 minimum; no install performed.
+
+VERIFIED: recovery33/33 (normal and CADENCE_DEBUG), Rust131, hotkeys139,
+delivery20, capture38, lifecycle17, stats39, widget16, appearance10,
+insertion9; store key policy checks, Python packaging/noise/cache17, site37.
+Planted discard-failed-write/double-count/omitted-disclosure regressions fail.
+The native encoding test first exposed an Objective-C exception; JSON validity
+guards fixed it and the test now passes. All failure tests used isolated
+stores; no live history, keys or legacy files were modified.
+
+ARTIFACT: Cadence0.1.8(14), SHA-256 `df13078cf20d17af1529e452858252fa295d94d4a716154b24c7986fc84a71a4`.
+Cask, installer and generated site pages agree. NEXT: reviewed feature→dev→main,
+GitHub release before Cloudflare site deployment, then verify public bytes.
+No real speech/first-install or macOS14 hardware test was performed. The installed
+AirPods experiment remains a separate acceptance gate (#106), not part of this
+public release. Crash/forced quit can lose unsaved RAM recovery; prior plaintext
+files and local key custody are disclosed, not silently migrated/deleted.
+
+FILES: AppMain, HistoryStore, EffectRouter, PendingHistory, DashboardWindow,
+HistorySelfTest, main.swift, tests.yml, README, DECISIONS, privacy page,
+releases.json, Cask and installer. Worktree ~/cadence-readiness,
+fix/private-history-fallback. Prior pause checkpoint is preserved in branch history.
+
 ## Step 15 — Background noise in loud rooms (2026-11-02)
 
 Objective (Daniel, verbatim): "music is always playing in my earbuds but ther was also some in

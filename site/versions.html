@@ -48,8 +48,13 @@
 <section class="releases" aria-label="Releases">
   <!-- releases:timeline -->
 <ol class="timeline">
+<li class="release" id="v0-1-8">
+  <div class="release-meta"><p class="release-version">0.1.8</p><time datetime="2026-11-05">November 5, 2026</time><span class="release-tag">Latest</span></div>
+  <div class="release-body"><h2>Private recovery when history cannot be saved</h2>
+  <ul><li>If encrypted history cannot be saved, unsaved words stay in memory with a warning and explicit copy or retry controls. No new plaintext history fallback.</li><li>Debug and malformed-effect diagnostics no longer log transcript payloads.</li><li>Normal quit asks before discarding unsaved history. Crashes and forced quits can still lose memory-only recovery; previous legacy files are preserved.</li><li>Hold Option for 10 seconds to continue hands-free; tap to finish.</li></ul><p class="release-links"><a href="https://github.com/danielcuesta007/cadence/releases/tag/v0.1.8" rel="noopener">Release page and download</a><span class="release-sha">SHA-256 <code>df13078cf20d17af1529e452858252fa295d94d4a716154b24c7986fc84a71a4</code></span></p></div>
+</li>
 <li class="release" id="v0-1-7">
-  <div class="release-meta"><p class="release-version">0.1.7</p><time datetime="2026-11-02">November 2, 2026</time><span class="release-tag">Latest</span></div>
+  <div class="release-meta"><p class="release-version">0.1.7</p><time datetime="2026-11-02">November 2, 2026</time></div>
   <div class="release-body"><h2>Background-noise captions removed more carefully</h2>
   <ul><li>When Cadence removes a background-noise caption such as [Music], it no longer changes the spacing or line breaks in the rest of your text.</li><li>A number that starts with a decimal point, like .5, keeps its point when a caption comes right before it.</li></ul><p class="release-links"><a href="https://github.com/danielcuesta007/cadence/releases/tag/v0.1.7" rel="noopener">Release page and download</a><span class="release-sha">SHA-256 <code>aefc1c01e1dac4c46b657b211514859cc0c25d67ff3bbdc3b03e67d957d1cf98</code></span></p></div>
 </li>
