@@ -30,6 +30,7 @@ struct HistoryEntry {
     /// are absent on rows written before they were recorded.
     let transcriptInstant: String?
     let transcriptFinal: String?
+    var memoryOnly = false
 
     /// Whisper emits bracketed non-speech markers ([BLANK_AUDIO], [MUSIC], [SILENCE]…) when it
     /// hears no words. They're not dictation — excluded from counts and shown muted.
@@ -55,12 +56,13 @@ enum HistoryReader {
                 return (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
             }
         }
-        var seen = Set<String>()
-        return (Array(PendingHistory.shared.snapshot.map(\.record).reversed()) + records)
-            .filter { record in
-                let key = "\(record["utterance"] ?? "")|\(record["ts"] ?? "")"
-                return seen.insert(key).inserted
-            }.map(entry(from:)).sorted { ($0.ts ?? .distantPast) > ($1.ts ?? .distantPast) }
+        return HistoryIdentity.merge(
+            pending: PendingHistory.shared.snapshot.reversed().map { item in
+                var row = item.record
+                row["_memory_only"] = true
+                return row
+            }, stored: records
+        ).map(entry(from:)).sorted { ($0.ts ?? .distantPast) > ($1.ts ?? .distantPast) }
     }
 
     private static func entry(from obj: [String: Any]) -> HistoryEntry {
@@ -79,7 +81,8 @@ enum HistoryReader {
             captureWindowMs: (obj["capture_window_ms"] as? NSNumber)?.intValue,
             insertionMs: (obj["insertion_ms"] as? NSNumber)?.intValue,
             transcriptInstant: obj["transcript_instant"] as? String,
-            transcriptFinal: obj["transcript_final"] as? String)
+            transcriptFinal: obj["transcript_final"] as? String,
+            memoryOnly: obj["_memory_only"] as? Bool ?? false)
     }
 }
 
@@ -798,6 +801,7 @@ final class DashboardWindowController: NSWindowController {
 
         var bits: [String] = []
         if let ts = e.ts { bits.append(Self.detailTimeFmt.string(from: ts)) }
+        if e.memoryOnly { bits.append("Unsaved · memory only") }
         if !e.app.isEmpty { bits.append(e.app) }
         bits.append(Self.languageName(e.language))
         bits.append((e.location ?? "local") == "cloud" ? "cloud" : "on-device")
@@ -812,7 +816,7 @@ final class DashboardWindowController: NSWindowController {
         let hasText = !e.text.isEmpty && !e.isNonSpeech
         copyButton.isEnabled = hasText
         reinsertButton.isEnabled = hasText && onReinsert != nil
-        deleteButton.isEnabled = !e.id.isEmpty && HistoryReader.store != nil
+        deleteButton.isEnabled = !e.memoryOnly && !e.id.isEmpty && HistoryReader.store != nil
         let hasAudio = e.audioBlobId != nil && HistoryReader.store != nil
         playButton.isEnabled = hasAudio
         playButton.title = hasAudio ? "Play Recording" : "No Recording"
@@ -916,7 +920,7 @@ final class DashboardWindowController: NSWindowController {
     }
 
     @objc private func deleteSelected() {
-        guard let e = selectedEntry(), !e.id.isEmpty, let store = HistoryReader.store else { return }
+        guard let e = selectedEntry(), !e.memoryOnly, !e.id.isEmpty, let store = HistoryReader.store else { return }
         let alert = NSAlert()
         alert.messageText = "Delete this dictation?"
         alert.informativeText = "“\(e.text.prefix(80))”\n\nThis also removes its recording, if any. This can't be undone."
@@ -1125,7 +1129,7 @@ final class HistoryRowView: NSView {
             text: (entry.language ?? "").uppercased().isEmpty ? "" : (entry.language ?? "").uppercased(),
             language: entry.language)
 
-        let app = NSTextField(labelWithString: entry.app.isEmpty ? "" : entry.app)
+        let app = NSTextField(labelWithString: entry.memoryOnly ? "Unsaved · memory only" : entry.app)
         app.font = .systemFont(ofSize: 12)
         app.textColor = .tertiaryLabelColor
         app.alignment = .right

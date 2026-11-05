@@ -36,7 +36,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     let historyNotice = NSMenuItem(title: "", action: nil, keyEquivalent: "")
     let recoverHistoryItem = NSMenuItem(title: "Recover Unsaved Dictations…", action: nil, keyEquivalent: "")
     var historyWarningShown = false
+    var historyWarningScheduled = false
     var retryingHistory = false
+    /// Confirmation boundary, replaceable by the headless failure-path harness.
+    var confirmHistoryDiscard: (Int) -> Bool = { count in
+        let alert = NSAlert()
+        alert.messageText = "Quit with unsaved dictations?"
+        alert.informativeText = "\(count) dictations are only in memory. Copy them or retry encrypted saving from the Cadence menu before quitting. Quitting will discard this unsaved history."
+        alert.addButton(withTitle: "Keep Cadence Open")
+        alert.addButton(withTitle: "Quit and Discard Unsaved History")
+        return alert.runModal() == .alertSecondButtonReturn
+    }
     let overlay = OverlayHUD()
     let capture = AudioCapture()
     let hotkeys = HotkeyMonitor()
@@ -317,6 +327,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         router.retainAudioEnabled = { [weak self] in self?.retainAudio ?? false }
         capture.preferBuiltInMic = store?.preferBuiltInMic ?? false
         capture.voiceIsolation = store?.voiceIsolation ?? true
+        updatePendingHistoryUI(warn: false)
         router.engine = { [weak self] in self?.engine }
         router.statusUpdate = { [weak self] state in
             guard let self else { return }
@@ -340,7 +351,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             }
             self.pttSwallowed = false
             // Never dictate into our own recovery/quit confirmation dialog.
-            guard NSApp.modalWindow == nil else { self.pttSwallowed = true; return }
+            guard NSApp.modalWindow == nil else { self.pttSwallowed = true; self.hotkeys.resetGesture(); return }
             // Per-app rule: dictation is off here — say so briefly, touch nothing else.
             let front = NSWorkspace.shared.frontmostApplication?.localizedName ?? ""
             if self.disabledApps.contains(front) {
@@ -894,10 +905,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         recoverHistoryItem.isHidden = count == 0 && historyStore != nil
         recoverHistoryItem.isEnabled = !retryingHistory
         renderState(lastRenderedState)
-        guard warn, count > 0, !historyWarningShown, router.activeState == "idle", NSApp.modalWindow == nil else { return }
-        historyWarningShown = true
+        guard warn, count > 0, !historyWarningShown, !historyWarningScheduled, router.activeState == "idle", NSApp.modalWindow == nil else { return }
+        historyWarningScheduled = true
         DispatchQueue.main.async { [weak self] in
-            guard let self, PendingHistory.shared.count > 0, self.router.activeState == "idle" else { return }
+            guard let self else { return }
+            self.historyWarningScheduled = false
+            guard PendingHistory.shared.count > 0, self.router.activeState == "idle", NSApp.modalWindow == nil else { return }
+            self.historyWarningShown = true
             let alert = NSAlert()
             alert.messageText = "Your dictation history could not be saved securely"
             alert.informativeText = "Unsaved words are kept in memory, not in a plaintext file. Review and copy them or retry encrypted saving before quitting. They cannot survive a crash, forced quit or shutdown."
@@ -909,7 +923,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc func reviewUnsavedHistory() {
-        guard router.activeState == "idle", !retryingHistory else { return }
+        guard router.activeState == "idle", !retryingHistory, NSApp.modalWindow == nil else { return }
         let alert = NSAlert()
         alert.messageText = "Unsaved dictations — memory only"
         alert.informativeText = "Copy these words to a document you choose, or retry saving to encrypted history. They remain available here until saving succeeds or Cadence quits."
@@ -917,7 +931,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         scroll.hasVerticalScroller = true
         let text = NSTextView(frame: scroll.bounds)
         text.isEditable = false
-        text.string = PendingHistory.shared.copyText
+        text.isVerticallyResizable = true
+        text.autoresizingMask = [.width]
+        text.textContainer?.widthTracksTextView = true
+        let recoveryText = PendingHistory.shared.copyText
+        text.string = recoveryText
         text.setAccessibilityLabel("Unsaved dictations")
         scroll.documentView = text
         alert.accessoryView = scroll
@@ -928,21 +946,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         switch alert.runModal() {
         case .alertFirstButtonReturn:
             NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(PendingHistory.shared.copyText, forType: .string)
+            NSPasteboard.general.setString(recoveryText, forType: .string)
         case .alertSecondButtonReturn:
             retryingHistory = true
             updatePendingHistoryUI(warn: false)
-            let existing = historyStore
+            // Reopen only after an explicit request and between utterances. Adopt all
+            // cached settings before allowing another dictation to start.
+            if historyStore == nil, let reopened = HistoryStore() { adoptRecoveredStore(reopened) }
+            let store = historyStore
             DispatchQueue.global(qos: .utility).async { [weak self] in
-                let store = existing ?? HistoryStore()
                 let saved = store.map { store in PendingHistory.shared.retry(write: store.persistRecoveredRecord) } ?? 0
                 DispatchQueue.main.async {
                     guard let self else { return }
-                    if let store {
-                        self.historyStore = store
-                        self.router.historyStore = store
-                        HistoryReader.store = store
-                    }
                     self.retryingHistory = false
                     self.router.log("encrypted history retry: \(saved) saved, \(PendingHistory.shared.count) pending")
                     self.updatePendingHistoryUI(warn: false)
@@ -951,6 +966,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             }
         default: break
         }
+    }
+
+    func adoptRecoveredStore(_ store: HistoryStore) {
+        historyStore = store
+        router.historyStore = store
+        HistoryReader.store = store
+        disabledApps = store.disabledApps()
+        retainAudio = store.retainAudioEnabled
+        dictationLanguage = store.dictationLanguage
+        secondaryLanguage = store.secondaryLanguage
+        verbatimMode = store.verbatimMode
+        copyDictations = store.featureEnabled("copy_dictations", default: true)
+        handsFree = store.featureEnabled("hands_free", default: true)
+        noisyRoom = store.featureEnabled("noisy_room", default: false)
+        liveInsertion = store.featureEnabled("live_insertion", default: false)
+        capture.preferBuiltInMic = store.preferBuiltInMic
+        capture.voiceIsolation = store.voiceIsolation
+        Appearance.apply(store.appearance)
+        hotkeys.resetGesture()
+        engine?.setNoisyRoom(noisyRoom)
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
@@ -964,12 +999,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         historyStore?.finishPendingWrites()
         guard PendingHistory.shared.count > 0 else { return .terminateNow }
-        let alert = NSAlert()
-        alert.messageText = "Quit with unsaved dictations?"
-        alert.informativeText = "\(PendingHistory.shared.count) dictations are only in memory. Copy them or retry encrypted saving from the Cadence menu before quitting. Quitting will discard this unsaved history."
-        alert.addButton(withTitle: "Keep Cadence Open")
-        alert.addButton(withTitle: "Quit and Discard Unsaved History")
-        return alert.runModal() == .alertSecondButtonReturn ? .terminateNow : .terminateCancel
+        return confirmHistoryDiscard(PendingHistory.shared.count) ? .terminateNow : .terminateCancel
     }
 
     @objc func quit() {

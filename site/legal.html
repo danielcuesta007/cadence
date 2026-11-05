@@ -33,14 +33,17 @@
 <!-- /site:header -->
 <main id="main" tabindex="-1" class="doc">
   <h1>Privacy, license and credits</h1>
-  <p class="doc-date">Last updated 13 October 2026</p>
+  <p class="doc-date">Last updated 5 November 2026</p>
 
   <h2 id="privacy">Privacy</h2>
   <h3>The Cadence app</h3>
   <ul>
     <li>Your speech is turned into text on your Mac. Cadence has no account, no server and no networking code, so nothing you say is sent anywhere.</li>
-    <li>It uses the microphone only while you hold a dictation key, and Accessibility only to put text where your cursor is.</li>
+    <li>It uses the microphone during push-to-talk or hands-free dictation, and Accessibility to put text where your cursor is.</li>
     <li>Dictation history and settings are stored on your Mac in <code>~/.cadence</code>, in an encrypted database. Audio is saved only if you turn that on, and you choose how long it's kept.</li>
+    <li>From version 0.1.8, if encrypted history cannot be saved, Cadence keeps unsaved transcripts in memory and warns you. Use <b>Recover Unsaved Dictations</b> in its menu to copy them or retry encrypted saving. Unsaved history cannot survive a crash, forced quit or shutdown; a normal quit asks before discarding it. Audio is not kept for memory-only recovery.</li>
+    <li>Version 0.1.7 and earlier can leave unencrypted legacy history files (<code>history.jsonl</code> or <code>history.jsonl.imported*</code>) in <code>~/.cadence</code>. Updating does not delete those files. Review or remove them yourself if you no longer need them.</li>
+    <li>The database key has a local, owner-readable file copy (<code>store.key</code>) for recovery as well as a Keychain copy when available. Database encryption does not protect against someone who can read both your database and its key. Use macOS FileVault to protect the disk while your Mac is off. Local statistics contain totals, not transcripts; diagnostic logs contain operational events.</li>
     <li>Delete everything by quitting Cadence and removing <code>~/.cadence</code> and the app.</li>
   </ul>
   <h3>This website</h3>

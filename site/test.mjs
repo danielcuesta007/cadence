@@ -559,3 +559,9 @@ test('the plans page keeps every free item and never over-promises', () => {
   assert.ok(ideas, 'paid extras are labelled as ideas, not promises');
   for (const text of [...steps.slice(1), ideas[0]]) assert.doesNotMatch(text, /\b20\d\d\b|\b(January|February|March|April|May|June|July|August|September|October|November|December)\b/, 'no dates on paid features');
 });
+
+test('privacy explains failure recovery and older plaintext history honestly', () => {
+  for (const text of ['0.1.8', 'in memory', 'Recover Unsaved Dictations', 'crash, forced quit or shutdown', '0.1.7 and earlier', 'history.jsonl.imported*', 'store.key', 'FileVault']) assert.ok(legal.includes(text), text);
+  assert.match(legal, /Updating does not delete those files/);
+  assert.match(legal, /Audio is not kept for memory-only recovery/);
+});

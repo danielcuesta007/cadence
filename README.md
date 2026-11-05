@@ -207,6 +207,7 @@ platform-macos/.build/release/cadence selftest-hotkeys   # PTT, double-tap hands
 platform-macos/.build/release/cadence selftest-delivery  # safe live previews, recovery, UTF-16 ranges
 platform-macos/.build/release/cadence selftest-lifecycle # startup, heartbeat, shutdown evidence
 platform-macos/.build/release/cadence selftest-appearance [--out dir]  # light/dark renders
+platform-macos/.build/release/cadence selftest-history   # isolated save failures, recovery, legacy preservation, quit
 platform-macos/.build/release/cadence selftest-capture   # mic route log, built-in pin policy
 qa/wer-harness.sh                                  # word error rate + ASR latency together
 qa/noise-bench.sh <model.bin> [label]              # same, under synthetic babble/music at 10/5/0 dB
@@ -217,6 +218,21 @@ python3 -B -m unittest qa.test_make_dmg qa.test_noise  # disk image guards, nois
 
 Is Start at Login really registered? Ask the installed bundle, not the menu checkmark
 (`sfltool dumpbtm` needs an admin password): `~/Applications/Cadence.app/Contents/MacOS/Cadence login-item`.
+
+### If encrypted history cannot be saved
+
+From 0.1.8, failed history saves stay in memory; Cadence never falls back to a new
+plaintext history file. A warning and **Recover Unsaved Dictations…** menu item let
+you copy the words or retry encrypted saving. Normal quit asks before discarding
+unsaved history. A crash, forced quit or shutdown loses memory-only recovery;
+audio is not retained for recovery. Dictation into the target app still works.
+
+Versions through 0.1.7 could create plaintext `~/.cadence/history.jsonl`; imported
+copies may remain as `history.jsonl.imported*`. Updates preserve those files.
+Review them yourself before deciding whether to remove them. The local
+owner-readable `store.key` is a recovery copy of the database key; protect the
+whole disk with FileVault. SQLCipher is not protection from an attacker who can
+read both the database and its key.
 
 ### When dictation stops working
 
