@@ -1,6 +1,38 @@
 # STATUS — Cadence build progress
 
-Updated: 2026-11-02 · Phase: **1 (MVP spine)** · Blueprint: docs/CADENCE_BLUEPRINT.md
+Updated: 2026-11-03 · Phase: **1 (MVP spine)** · Blueprint: docs/CADENCE_BLUEPRINT.md
+
+## Step 19 — Private history failure recovery (2026-11-05)
+
+Objective (Daniel): “can we wrap up that work pls?” Finish the paused privacy
+fallback fix against current dev, preserving the installed AirPods A/B build.
+
+DONE: failed history writes stay in RAM with visible copy/encrypted retry,
+normal-quit discard confirmation, no transcript payloads in diagnostic traces,
+legacy archive preservation, accurate privacy disclosure, and recovery of all
+cached settings when reopening the store. Prepared 0.1.8/build14 with the
+multilingual model, stable signer and macOS14 minimum; no install performed.
+
+VERIFIED: recovery33/33 (normal and CADENCE_DEBUG), Rust131, hotkeys139,
+delivery20, capture38, lifecycle17, stats39, widget16, appearance10,
+insertion9; store key policy checks, Python packaging/noise/cache17, site37.
+Planted discard-failed-write/double-count/omitted-disclosure regressions fail.
+The native encoding test first exposed an Objective-C exception; JSON validity
+guards fixed it and the test now passes. All failure tests used isolated
+stores; no live history, keys or legacy files were modified.
+
+ARTIFACT: Cadence0.1.8(14), SHA-256 `df13078cf20d17af1529e452858252fa295d94d4a716154b24c7986fc84a71a4`.
+Cask, installer and generated site pages agree. NEXT: reviewed feature→dev→main,
+GitHub release before Cloudflare site deployment, then verify public bytes.
+No real speech/first-install or macOS14 hardware test was performed. The installed
+AirPods experiment remains a separate acceptance gate (#106), not part of this
+public release. Crash/forced quit can lose unsaved RAM recovery; prior plaintext
+files and local key custody are disclosed, not silently migrated/deleted.
+
+FILES: AppMain, HistoryStore, EffectRouter, PendingHistory, DashboardWindow,
+HistorySelfTest, main.swift, tests.yml, README, DECISIONS, privacy page,
+releases.json, Cask and installer. Worktree ~/cadence-readiness,
+fix/private-history-fallback. Prior pause checkpoint is preserved in branch history.
 
 ## Step 15 — Background noise in loud rooms (2026-11-02)
 
@@ -212,16 +244,21 @@ v0.1.3 download, app branding and widget instructions remain current.
 
 ## Handoff
 
-**State (2026-11-02):** Cadence **0.1.5 (9) is released** and live.
-- Release: https://github.com/danielcuesta007/cadence/releases/tag/v0.1.5 (tag at 9b932aa),
-  Cadence.dmg sha256 `bfefc929442146a405dbe9d43ae862068cd51457a91ba714a742581578501d70`
-  (public latest-download verified to match).
-- main 9ca412e (release PR #82 = #79 gesture, #80 releases.json + multi-page site, #81 stamps);
-  dev kept. Site deployed from main to https://cadence-dictation.pages.dev (all 7 pages,
-  install.sh and the cask pin 0.1.5).
-- Installed on Daniel's Mac: 0.1.5 (9), doctor clean. Rollbacks:
-  ~/Applications/Cadence.app.pre-v015b9-20261101T220210 (0.1.5 build 8) and older
-  pre-v015/pre-v014 bundles.
+**State (2026-11-03):** Cadence **0.1.7 (13) is released** and live (Daniel: "publish pls
+yes u have all permissions to work!", 2 Nov 2026).
+- Release: https://github.com/danielcuesta007/cadence/releases/tag/v0.1.7 (tag at 024d574,
+  published as latest 2026-11-02T20:57Z). Cadence.dmg sha256
+  `aefc1c01e1dac4c46b657b211514859cc0c25d67ff3bbdc3b03e67d957d1cf98`. The public
+  latest-download hash was checked and matches.
+- main 97b70ab (release PR #103 = #96 #97 #98 #99 #100 #101 #102, merge commit, dev kept).
+  #100 (Plans page) and #101 (extension points) came from a parallel session. They are on
+  main but not in the 0.1.7 binary.
+- Site deployed from main to https://cadence-dictation.pages.dev (deploy 7d206519). The live
+  /download page, install.sh and the cask on main all name 0.1.7 / aefc1c01. /promises is live.
+- Installed on Daniel's Mac: 0.1.7 (13), model pin 1be3a9b2. Rollbacks:
+  ~/Applications/Cadence.app.pre-v017-20261102T154715 (0.1.6 b12) and older pre-v016* bundles.
+- Next: Step 17. Daniel dictates in the dining hall with Noisy Room Mode ON and reports what
+  he said vs what was typed.
 
 **How releases work now:** add an entry at the top of `releases.json` (version, build, title,
 highlights, date/sha256 null) → `qa/build-shell.sh` → `qa/package-app.sh` (reads version)
@@ -239,7 +276,7 @@ Model: ~/cadence/models/artifacts/ggml-small.bin (pin 1be3a9b2…; pass CADENCE_
 Other worktrees (capture-latency, dictation-controls, readiness, ~/cadence) hold uncommitted
 research: do not reset or stash them.
 
-**0.1.7 (13) — caption-filter fix release (Daniel: "push go fix merge", 2 Nov 2026).**
+**0.1.7 (13) — caption-filter fix, RELEASED 2 Nov 2026 (see State above).**
 #97 fixed issue #95: removing a noise caption only tidies its own gap, and "[Music] .5 mg"
 no longer becomes "5 mg" (a 10x dose bug that shipped in 0.1.6). See "How releases work now".
 

@@ -12,6 +12,7 @@ Center (free) or a startup lawyer before charging money.
   rusqlite (MIT), SQLCipher (BSD-style), OpenSSL (Apache 2.0). All allow commercial use.
   Their full texts are in `THIRD_PARTY_NOTICES.md`, which now ships inside the app and the
   disk image (Apache 2.0 requires the notice to travel with copies).
+- **Privacy (0.1.8):** failed history saves are memory-only with explicit recovery; legacy plaintext files and local key-file custody are disclosed. No automatic deletion of prior history.
 - **Privacy:** `site/legal.html#privacy` (no network, `~/.cadence` encrypted, audio off by
   default; site has no cookies or analytics).
 - **Not notarized, explained:** the site says plainly that skipping Apple's $99/year

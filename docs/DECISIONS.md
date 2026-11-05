@@ -105,3 +105,10 @@ Format: date · decision · why · reversibility. Larger decisions get an ADR in
     (empty = the free build). Tests prove a full dictation runs with zero extensions and that
     no workspace crate depends on anything outside the repo. No licence or payment code. See
     ADR-0009 (follows ADR-0008 checkpoint 4).
+
+26. **Fail-private history recovery (Step 19, 5 Nov 2026):** replaces decision 16's
+    plaintext fallback from version 0.1.8. Failed encrypted saves remain in RAM
+    with visible recovery, explicit copy/retry and a normal-quit discard check.
+    Forced quit/crash/shutdown can lose those unsaved records. Legacy plaintext
+    files are preserved, not automatically deleted. Audio is not retained for
+    memory-only recovery. Existing local key custody is unchanged and disclosed.

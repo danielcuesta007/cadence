@@ -95,6 +95,7 @@ func parseArgs() -> Config {
             c.wav = it.next()
         case "selftest-widget": c.mode = "selftest-widget"
         case "selftest-stats": c.mode = "selftest-stats"
+        case "selftest-history": c.mode = "selftest-history"
         case "selftest-store": c.mode = "selftest-store"
         case "selftest-hotkeys": c.mode = "selftest-hotkeys"
         case "selftest-delivery": c.mode = "selftest-delivery"
@@ -132,6 +133,8 @@ case "selftest-widget":
     exit(runDesktopWidgetSelftest(outDir: config.outDir))
 case "selftest-stats":
     exit(runStatsSelftest())
+case "selftest-history":
+    exit(runHistorySelftest())
 case "selftest-store":
     exit(runStoreSelftest())
 case "selftest-delivery":

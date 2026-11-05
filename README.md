@@ -21,7 +21,8 @@ UX spec + roadmap). Progress: [`docs/STATUS.md`](docs/STATUS.md) · Decisions:
 Hold either Option key to dictate as before. For long dictation, go **hands-free**: tap
 the same Option key twice, or tap it once and then press and hold. Either way the pill says
 **hands-free** and you can let go. Tap that key once to finish and insert (finishing never
-presses Return).
+presses Return). Or just keep holding: after 10 seconds the pill says **long dictation on**,
+you can let go and keep talking, and one tap finishes.
 
 It's forgiving on purpose. The first tap just needs to be short (under about half a
 second), and the second press can come up to 0.7 s later: your macOS double-click speed
@@ -29,7 +30,7 @@ second), and the second press can come up to 0.7 s later: your macOS double-clic
 After the first tap the pill says **tap again for hands-free**, so you can see it
 registered. Right-Option and Left-Option keep their own language assignments. Escape
 cancels. A single short tap finishes when that pause runs out; releasing a normal hold
-finishes immediately. Option shortcuts still work.
+(under 10 seconds) finishes immediately. Option shortcuts still work.
 Recordings automatically finish at 29 minutes so the audio buffer cannot silently discard
 the beginning. Streaming previews copy only the recent eight seconds of audio.
 
@@ -45,7 +46,7 @@ Settings:
   Turn it off to preserve your previous clipboard after successful insertion. Failed
   insertion still copies the text for recovery. A newer clipboard write during the paste
   transaction is preserved.
-- **Double-Tap to Start Hands-Free** (on by default): turn off for hold-only controls.
+- **Hands-Free: Double-Tap or Hold 10 s** (on by default): turn off for hold-only controls (no double-tap, and a hold of any length finishes on release).
 - **Noisy Room Mode** (off by default): a more careful decode for rooms with other people talking. In testing it made about a fifth fewer mistakes with chatter as loud as you, but results take roughly 70% longer.
 - **Experimental Features → Live Insertion (Supported Fields)** (off by default): provisional
   words appear in readable, editable Accessibility fields while you speak; the final
@@ -206,6 +207,7 @@ platform-macos/.build/release/cadence selftest-hotkeys   # PTT, double-tap hands
 platform-macos/.build/release/cadence selftest-delivery  # safe live previews, recovery, UTF-16 ranges
 platform-macos/.build/release/cadence selftest-lifecycle # startup, heartbeat, shutdown evidence
 platform-macos/.build/release/cadence selftest-appearance [--out dir]  # light/dark renders
+platform-macos/.build/release/cadence selftest-history   # isolated save failures, recovery, legacy preservation, quit
 platform-macos/.build/release/cadence selftest-capture   # mic route log, built-in pin policy
 qa/wer-harness.sh                                  # word error rate + ASR latency together
 qa/noise-bench.sh <model.bin> [label]              # same, under synthetic babble/music at 10/5/0 dB
@@ -216,6 +218,21 @@ python3 -B -m unittest qa.test_make_dmg qa.test_noise  # disk image guards, nois
 
 Is Start at Login really registered? Ask the installed bundle, not the menu checkmark
 (`sfltool dumpbtm` needs an admin password): `~/Applications/Cadence.app/Contents/MacOS/Cadence login-item`.
+
+### If encrypted history cannot be saved
+
+From 0.1.8, failed history saves stay in memory; Cadence never falls back to a new
+plaintext history file. A warning and **Recover Unsaved Dictations…** menu item let
+you copy the words or retry encrypted saving. Normal quit asks before discarding
+unsaved history. A crash, forced quit or shutdown loses memory-only recovery;
+audio is not retained for recovery. Dictation into the target app still works.
+
+Versions through 0.1.7 could create plaintext `~/.cadence/history.jsonl`; imported
+copies may remain as `history.jsonl.imported*`. Updates preserve those files.
+Review them yourself before deciding whether to remove them. The local
+owner-readable `store.key` is a recovery copy of the database key; protect the
+whole disk with FileVault. SQLCipher is not protection from an attacker who can
+read both the database and its key.
 
 ### When dictation stops working
 

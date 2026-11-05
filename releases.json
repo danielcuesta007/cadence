@@ -2,6 +2,19 @@
   "_about": "The one list of Cadence versions, newest first. qa/package-app.sh reads the app version and build from the first entry; qa/make-dmg.sh refuses any other version and stamps that entry's date and sha256; the site renders its version timeline and download details from this file (site/releases.mjs). Add a new entry at the top to start a release.",
   "releases": [
     {
+      "version": "0.1.8",
+      "build": 14,
+      "date": "2026-11-05",
+      "sha256": "df13078cf20d17af1529e452858252fa295d94d4a716154b24c7986fc84a71a4",
+      "title": "Private recovery when history cannot be saved",
+      "highlights": [
+        "If encrypted history cannot be saved, unsaved words stay in memory with a warning and explicit copy or retry controls. No new plaintext history fallback.",
+        "Debug and malformed-effect diagnostics no longer log transcript payloads.",
+        "Normal quit asks before discarding unsaved history. Crashes and forced quits can still lose memory-only recovery; previous legacy files are preserved.",
+        "Hold Option for 10 seconds to continue hands-free; tap to finish."
+      ]
+    },
+    {
       "version": "0.1.7",
       "build": 13,
       "date": "2026-11-02",
