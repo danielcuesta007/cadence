@@ -1,7 +1,7 @@
 <!-- One feature or fix per PR. Draft PRs are welcome: open early, document as you go. -->
 
 ## Why
-<!-- The problem or request behind this change. Quote the original ask if there is one. -->
+<!-- The problem this solves and who it helps, in words a non-engineer would follow. Quote the original ask if there is one. -->
 
 ## What changed
 <!-- The few things a reviewer needs to know, not a list of every file. -->

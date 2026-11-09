@@ -40,11 +40,23 @@ This is the working philosophy behind every repo Daniel Cuesta builds, with AI p
   - **Retrospective:** what went well, what didn't, what changes next sprint.
 - Schedule and people are fixed; scope is what gets negotiated.
 
+## Working with people who aren't engineers (JP Burford, 27 Oct)
+The job is not creating apps; it's solving problems for the people who rely on them.
+
+- **Learn their world and speak their language.** Talk about outcomes, without jargon or hype.
+- **Ask why before saying no.** Find the need behind a request. The solution isn't ours to own, so stay open to feedback and don't take it personally.
+- **Sell the why, and back it with facts.** Treat other people's money like our own.
+- **Don't overpromise.** Commit to what we can deliver, and negotiate scope in good faith.
+- **Raise problems immediately, with a recommended fix.** Own mistakes openly, then learn from them.
+
+Updates to partners, investors and collaborators follow one shape: the outcome, the evidence, where it stands against what we promised, problems with the fix we recommend, and what we need from them.
+
 ## Built to work anywhere
 - No hardcoded home paths or usernames.
 - Data lives in files or a database, never only in browser storage.
 - Dependencies are declared in the README, and anything missing makes the tool degrade gracefully instead of crashing.
 - Every repo is ready to publish from its first commit: README, `.gitignore`, LICENSE and sample data.
+- **If something ever needs its own server** (JP Burford, 3 Nov), run it in a container built from a Dockerfile in the repo. Keep data outside the container, keep the database apart from the web server, and tag each image so a bad release can be rolled back. Don't add containers without a problem they solve.
 
 ## AI is the crew, not the author
 - Claude Code writes much of the code here, inside the same process as everyone else: a branch, a PR with the why, tests and a review.
