@@ -14,6 +14,7 @@
 import AVFoundation
 import CObjCCatch
 import CoreAudio
+import os
 
 public enum CaptureError: Error, CustomStringConvertible {
     case formatUnavailable
@@ -41,6 +42,20 @@ public final class AudioCapture {
     private var tapFormat: AVAudioFormat?
     private var routeChangeObserver: NSObjectProtocol?
     private var rebuildWork: DispatchWorkItem?
+    /// Open while an utterance wants audio. The tap drops buffers while it is shut, so a
+    /// Bluetooth mic held open between dictations (`bluetoothGrace`) never reaches the core.
+    private let gate = OSAllocatedUnfairLock(initialState: false)
+    /// Pending real engine stop at the end of a Bluetooth grace period.
+    private var graceStop: DispatchWorkItem?
+
+    /// Seconds to keep a Bluetooth (AirPods) mic open after a dictation ends, 0 = off
+    /// (default). Daniel (3 Nov 2026): "I would rather keep my music good and then still use
+    /// the AirPods microphone." Releasing the AirPods mic flips them back from headset to
+    /// music mode, which glitches music right at insert; holding the mic open for a while
+    /// moves that one switch to after the last dictation. Audio is NOT delivered or kept
+    /// while held (the gate is shut); the mic-in-use indicator stays on until it closes.
+    public var bluetoothGrace: TimeInterval = 0
+    public static let defaultBluetoothGrace: TimeInterval = 30
 
     /// (samples16k, level 0…1) — called on the audio tap thread. Only fires while running:
     /// the tap checks this flag so a buffer straggling in after stop() is still delivered
@@ -320,6 +335,7 @@ public final class AudioCapture {
     /// the cached pick: the next start()'s drift check re-pins.
     private func scheduleRouteRebuild() {
         targetCache = nil
+        endGrace()  // now, not after the debounce: a dictation inside it must not reuse the old tap
         rebuildWork?.cancel()
         let work = DispatchWorkItem { [weak self] in
             guard let self, !self.running else { return }
@@ -368,6 +384,18 @@ public final class AudioCapture {
 
     public func start() throws {
         guard !running else { return }
+        // Inside a Bluetooth grace period the engine is still running on the same route:
+        // reopen the gate instead of restarting it. No mic switch, so no music glitch.
+        if graceStop != nil, engine.isRunning, tapInstalled {
+            graceStop?.cancel()
+            graceStop = nil
+            gate.withLock { $0 = true }
+            running = true
+            return
+        }
+        endGrace()
+        // Open before engine I/O starts: the first tap buffer must never hit a shut gate.
+        gate.withLock { $0 = true }
         do {
             try startOnce()
         } catch {
@@ -382,10 +410,16 @@ public final class AudioCapture {
                 // Voice processing itself may be what's failing (AUVoiceIO is the
                 // newest, quirkiest piece). Never let a nicety cancel dictations:
                 // drop it for the session and go bare before giving up.
-                guard voiceIsolation, !vpDisabledFallback else { throw error }
+                guard voiceIsolation, !vpDisabledFallback else {
+                    gate.withLock { $0 = false }
+                    throw error
+                }
                 vpDisabledFallback = true
                 recreateEngine()
-                try startOnce()
+                do { try startOnce() } catch {
+                    gate.withLock { $0 = false }
+                    throw error
+                }
             }
         }
         running = true
@@ -410,6 +444,9 @@ public final class AudioCapture {
             routeChangeObserver = nil
         }
         rebuildWork?.cancel()
+        graceStop?.cancel()
+        graceStop = nil
+        gate.withLock { $0 = false }
         let old = engine
         tapInstalled = false
         tapFormat = nil
@@ -430,10 +467,46 @@ public final class AudioCapture {
     /// the tap stays installed and prepare() re-arms immediately, keeping the next start warm.
     public func stop() {
         guard running else { return }
-        engine.stop()
         running = false
+        // Cheap check first: with grace off (the default) no device is queried on stop.
+        if bluetoothGrace > 0,
+           RoutePolicy.holdsMicOpen(grace: bluetoothGrace, transport: inputTransport(),
+                                    voiceProcessing: engine.inputNode.isVoiceProcessingEnabled) {
+            // The engine keeps running, so the buffer in flight at release completes on its
+            // own schedule: wait one full tap buffer (2048 frames, ~128 ms at 16 kHz HFP) plus
+            // margin before shutting the gate, so the last syllable is delivered.
+            let rate = max(8_000, engine.inputNode.inputFormat(forBus: 0).sampleRate)
+            Thread.sleep(forTimeInterval: RoutePolicy.graceTailWait(sampleRate: rate))
+            gate.withLock { $0 = false }
+            let work = DispatchWorkItem { [weak self] in self?.endGrace() }
+            graceStop = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + bluetoothGrace, execute: work)
+            return
+        }
+        engine.stop()
         Thread.sleep(forTimeInterval: 0.02)
+        gate.withLock { $0 = false }
         engine.prepare()
+    }
+
+    /// Close a held-open Bluetooth mic now (grace over, route change, setting off, quit).
+    public func endGrace() {
+        guard let work = graceStop else { return }
+        work.cancel()
+        graceStop = nil
+        guard !running else { return }
+        engine.stop()
+        engine.prepare()
+    }
+
+    /// Transport of the mic capture is actually using ("bluetooth", "built-in", ...): the
+    /// pinned device only when the pin verifiably held, otherwise the system default input.
+    private func inputTransport() -> String {
+        let actual: AudioDeviceID?
+        if pinState == .held, let p = pinnedDevice { actual = p } else { actual = Self.defaultInputDevice() }
+        guard let dev = actual else { return "other" }
+        return Self.uint32Property(dev, kAudioDevicePropertyTransportType)
+            .map(RoutePolicy.transportName) ?? "other"
     }
 
     // MARK: - warm tap
@@ -489,7 +562,7 @@ public final class AudioCapture {
         // ~43 ms buffers at 48 kHz: small enough that the ring is near-live, big enough to
         // keep the tap cheap.
         let install = { input.installTap(onBus: 0, bufferSize: 2048, format: inFormat) { [weak self] buffer, _ in
-            guard let self, let onChunk = self.onChunk else { return }
+            guard let self, let onChunk = self.onChunk, self.gate.withLock({ $0 }) else { return }
             let ratio = outFormat.sampleRate / inFormat.sampleRate
             let capacity = AVAudioFrameCount(Double(buffer.frameLength) * ratio) + 64
             guard let out = AVAudioPCMBuffer(pcmFormat: outFormat, frameCapacity: capacity)

@@ -153,7 +153,23 @@ public enum RoutePolicy {
         return readBackInputs.contains(target) ? .held : .failed(-1)
     }
 
+    /// Hold the mic open after a dictation only for a Bluetooth mic, and only when the user
+    /// turned the grace period on. A built-in or USB mic never needs it (no profile switch).
+    /// Never with voice processing: stopping a live AUVoiceIO later on the main thread is the
+    /// teardown that deadlocked the app (2026-07-19).
+    public static func holdsMicOpen(grace: TimeInterval, transport: String,
+                                    voiceProcessing: Bool = false) -> Bool {
+        grace > 0 && transport == "bluetooth" && !voiceProcessing
+    }
+
+    /// How long stop() waits before shutting the gate when the engine stays running: one
+    /// 2048-frame tap buffer at the input rate plus 20 ms, so the last buffer lands.
+    public static func graceTailWait(sampleRate: Double) -> TimeInterval {
+        2048 / max(8_000, sampleRate) + 0.02
+    }
+
     /// "bluetooth" / "built-in" / "usb" / … from a CoreAudio transport FourCC.
+
     public static func transportName(_ fourCC: UInt32) -> String {
         switch fourCC {
         case kAudioDeviceTransportTypeBuiltIn: return "built-in"
