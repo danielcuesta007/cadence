@@ -223,9 +223,10 @@ func runHotkeySelftest() -> Int32 {
         }
         var a = arb()
         _ = e(&a, true, 0); _ = e(&a, false, 0.05); _ = e(&a, true, 0.15); _ = e(&a, false, 0.2)
-        check("triple_tap_fires_on_third_down", e(&a, true, 0.4) == .tripleTap(.primary))
+        check("triple_tap_waits_for_third_release", e(&a, true, 0.4) == .ignore && a.latched)
+        check("triple_tap_fires_on_quick_release", e(&a, false, 0.45) == .tripleTap(.primary))
         check("triple_tap_clears_everything", a.held == nil && !a.latched && a.deadline == nil)
-        check("triple_tap_release_is_noop", e(&a, false, 0.45) == .ignore && a.expire(now: 5) == .ignore)
+        check("triple_tap_nothing_left_to_stop", e(&a, false, 0.5) == .ignore && a.expire(now: 5) == .ignore)
         check("after_triple_next_press_starts_fresh", e(&a, true, 3) == .start(.primary))
 
         a = arb()
@@ -252,6 +253,28 @@ func runHotkeySelftest() -> Int32 {
         a = arb()
         _ = e(&a, true, 0); _ = e(&a, false, 0.05); _ = e(&a, true, 0.15); _ = e(&a, false, 0.2)
         check("other_key_cannot_triple", e(&a, true, 0.4, key: .secondary) == .ignore && a.latched)
+        check("other_key_closes_triple_window", e(&a, true, 0.5) == .ignore
+              && e(&a, false, 0.55) == .stop(.primary))
+
+        // ⌥e right after latching: Option down lands in the window, then the letter retracts.
+        a = arb()
+        _ = e(&a, true, 0); _ = e(&a, false, 0.05); _ = e(&a, true, 0.15); _ = e(&a, false, 0.2)
+        _ = e(&a, true, 0.4)
+        check("chord_in_window_keeps_dictation", a.retract(now: 0.42) == .ignore && a.latched
+              && e(&a, false, 0.45) == .ignore && a.latched)
+
+        // A held third press is "finish", not a toggle.
+        a = arb()
+        _ = e(&a, true, 0); _ = e(&a, false, 0.05); _ = e(&a, true, 0.15); _ = e(&a, false, 0.2)
+        check("held_third_press_finishes", e(&a, true, 0.4) == .ignore && e(&a, false, 1.5) == .stop(.primary))
+
+        var g = NoisyToggleGate()
+        check("gate_idle_applies_now", g.request(idle: true) == .applyNow && !g.pending)
+        check("gate_live_defers_to_idle", g.request(idle: false) == .cancelThenApply
+              && !g.state("cancelled") && g.state("idle") && !g.state("idle"))
+        _ = g.request(idle: false)
+        g.dictationStarted()
+        check("gate_stale_request_dropped", !g.state("idle"))
 
         a = arb()
         let off = [e(&a, true, 0, handsFree: false), e(&a, false, 0.05, handsFree: false),

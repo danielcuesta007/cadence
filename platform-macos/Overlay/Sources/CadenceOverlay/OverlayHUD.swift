@@ -241,3 +241,31 @@ public enum NoisyRoomPill {
         on ? "◉ noisy room on" : "○ noisy room off"
     }
 }
+
+/// Sequencing for a triple-tap toggle, kept pure so selftest-hotkeys can pin it. The flip is
+/// applied only at idle, after the taps' utterance is cancelled: the menu's rule that the mode
+/// never changes under a live utterance holds here too.
+public struct NoisyToggleGate {
+    public enum Action: Equatable {
+        /// Already idle: flip and confirm now.
+        case applyNow
+        /// Cancel the taps' utterance; flip and confirm when idle arrives.
+        case cancelThenApply
+    }
+    public private(set) var pending = false
+    public init() {}
+    public mutating func request(idle: Bool) -> Action {
+        if idle { pending = false; return .applyNow }
+        pending = true
+        return .cancelThenApply
+    }
+    /// Router state changed. True exactly once, when a deferred flip should be applied.
+    public mutating func state(_ state: String) -> Bool {
+        guard pending, state == "idle" else { return false }
+        pending = false
+        return true
+    }
+    /// A new dictation is starting: any deferred flip that never reached idle is dropped,
+    /// so a stale confirmation can never paint over a later dictation.
+    public mutating func dictationStarted() { pending = false }
+}

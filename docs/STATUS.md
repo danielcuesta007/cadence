@@ -250,14 +250,14 @@ v0.1.3 download, app branding and widget instructions remain current.
 
 **15 Nov 2026 — Noisy Room Mode on the pill + triple tap (feat/noisy-pill-triple-tap).**
 Daniel: "build into the pill an indicator that tells you whether the loud noise room thing
-is on, make it so that triple tap turns it on or off". A third quick tap after a double-tap
+is on, make it so that triple tap turns it on or off". A third quick tap (judged on its release) after a double-tap
 latch (second tap <= maxTapDuration, third press within interTapGap of its release) is
 `PTTArbiter.Decision.tripleTap`: the speechless utterance is cancelled and the mode flips
 through one `setNoisyRoom(_:via:)` path (store, core, pill, log `noisy room mode on (triple
 tap)`). Tap-then-hold, the 10 s hold latch, typing, the other key and Hands-Free off never
 trigger it. The pill flashes "◉ noisy room on" / "○ noisy room off" after the cancel settles
 and tags listening/thinking with a pink "noisy room" label. selftest-hotkeys +12 checks
-(planted bugs caught 3 and 5 failures). Installed locally 15 Nov (labelled 0.1.8 (14), also
++ NoisyToggleGate (planted bugs caught each time). Installed locally 15 Nov (labelled 0.1.8 (14), also
 carries dev's opt-in #106); verified live with synthesized Right-Option taps: on/off/on in
 the log, no text typed, pill screenshots. Left ON for Daniel's loud-room test. Rollback:
 `~/Applications/Cadence.app.pre-noisypill-20261115T202526` (stable 0.1.8).

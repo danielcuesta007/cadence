@@ -96,7 +96,8 @@ public struct PTTArbiter {
         case cancel(PTTKey)
         /// Three quick taps: throw the (sub-second, speechless) utterance away and let the app
         /// flip Noisy Room Mode. Daniel (15 Nov 2026): "make it so that triple tap turns it on
-        /// or off". Only reachable on the hands-free path, from a double-tap latch.
+        /// or off". Only reachable on the hands-free path, from a double-tap latch, and fired
+        /// on the third tap's release so a chord typed right after latching never counts.
         case tripleTap(PTTKey)
         case ignore
     }
@@ -112,6 +113,8 @@ public struct PTTArbiter {
     /// Set when a double tap's second press was itself a quick tap: a third press before this
     /// instant is a triple tap, not the "tap to finish" of hands-free.
     private var tripleDeadline: TimeInterval?
+    /// The current press is a possible third tap; it counts only if released as a quick tap.
+    private var tripleCandidate = false
     /// Hands-free was latched by holding past `timing.longHold`, not by a double tap.
     public private(set) var latchedByHold = false
     /// Read at the start of each gesture by the monitor; fixed for the gesture's lifetime.
@@ -137,15 +140,15 @@ public struct PTTArbiter {
             return .stop(key)
         }
         if down {
-            guard !otherModifiers, !physicalDown, held == nil || held == key else { return .ignore }
-            // Third quick tap after a double-tap latch: a gesture, not "finish". Judged on the
-            // way DOWN so the toggle feels instant; the release then finds nothing held.
+            // Any press closes the triple-tap window, even one the guard rejects: a press of
+            // the other key in between means the next one is not a third tap.
             let tripleWindow = tripleDeadline.map { now < $0 } ?? false
             tripleDeadline = nil
-            if tripleWindow, latched, held == key {
-                reset()
-                return .tripleTap(key)
-            }
+            guard !otherModifiers, !physicalDown, held == nil || held == key else { return .ignore }
+            // Third press after a quick double-tap latch: a triple-tap CANDIDATE. Judged on
+            // release, so ⌥e or ⌥⌘… typed right after latching retracts it (typing clears
+            // physicalDown) instead of cancelling the dictation.
+            tripleCandidate = tripleWindow && latched && held == key
             physicalDown = true
             pressedAt = now
             // Strictly before the deadline: at the deadline itself `expire` has already
@@ -168,6 +171,13 @@ public struct PTTArbiter {
         }
         guard held == key, physicalDown else { return .ignore }
         physicalDown = false
+        if tripleCandidate {
+            tripleCandidate = false
+            if now - pressedAt <= timing.maxTapDuration {
+                reset()
+                return .tripleTap(key)
+            }
+        }
         if latchPress {
             latchPress = false
             // Only a quick second tap opens the triple-tap window: tap-then-hold and the
@@ -221,6 +231,7 @@ public struct PTTArbiter {
 
     public mutating func reset() {
         tripleDeadline = nil
+        tripleCandidate = false
         latchPress = false
         latchedByHold = false
         held = nil
@@ -242,6 +253,7 @@ public struct PTTArbiter {
         if latched {
             latchPress = false
             tripleDeadline = nil
+            tripleCandidate = false
             deadline = nil
             secondTap = false
             physicalDown = false

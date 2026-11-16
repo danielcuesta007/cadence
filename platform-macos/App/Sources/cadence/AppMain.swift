@@ -344,7 +344,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             guard let self else { return }
             self.renderState(state)
             if state == "idle" || state == "thinking" { self.hotkeys.resetGesture() }
-            if state == "idle", self.pendingNoisyFlash { self.flashNoisyRoom() }
+            if self.noisyToggle.state(state) {
+                self.setNoisyRoom(!self.noisyRoom, via: "triple tap")
+                self.flashNoisyRoom()
+            }
             self.updatePendingHistoryUI()
             if state == "idle", let a = self.activity {
                 ProcessInfo.processInfo.endActivity(a)
@@ -362,6 +365,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 return
             }
             self.pttSwallowed = false
+            self.noisyToggle.dictationStarted()
             // Never dictate into our own recovery/quit confirmation dialog.
             guard NSApp.modalWindow == nil else { self.pttSwallowed = true; self.hotkeys.resetGesture(); return }
             // Per-app rule: dictation is off here — say so briefly, touch nothing else.
@@ -410,16 +414,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self.engine?.cancel()
         }
         // Three quick taps: the taps themselves started a dictation with no speech in it, so
-        // throw that away and flip Noisy Room Mode. The confirmation waits for the cancel to
-        // settle at idle, or the router's "cancelled" pill would paint over it.
+        // throw that away, then flip Noisy Room Mode once idle (never under a live utterance;
+        // see NoisyToggleGate). Waiting for idle also keeps the router's "cancelled" pill
+        // from painting over the confirmation.
         hotkeys.onTripleTap = { [weak self] _ in
             guard let self else { return }
             self.pttSwallowed = false
-            self.setNoisyRoom(!self.noisyRoom, via: "triple tap")
-            if self.router.activeState == "idle" {
+            switch self.noisyToggle.request(idle: self.router.activeState == "idle" || self.engine == nil) {
+            case .applyNow:
+                self.setNoisyRoom(!self.noisyRoom, via: "triple tap")
                 self.flashNoisyRoom()
-            } else {
-                self.pendingNoisyFlash = true
+            case .cancelThenApply:
                 self.engine?.cancel()
             }
         }
@@ -621,11 +626,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         router.log("noisy room mode \(noisyRoom ? "on" : "off") (\(source))\(Self.beamOverrideNote)")
     }
 
-    private var pendingNoisyFlash = false
+    private var noisyToggle = NoisyToggleGate()
     /// Briefly says which way the mode went. Deferred one turn: the router fades the pill
     /// right after reporting idle, and show() cancels that fade.
     func flashNoisyRoom() {
-        pendingNoisyFlash = false
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             self.overlay.show(state: self.noisyRoom ? "noisy_room_on" : "noisy_room_off", chip: nil)
