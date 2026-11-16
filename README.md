@@ -47,7 +47,7 @@ Settings:
   insertion still copies the text for recovery. A newer clipboard write during the paste
   transaction is preserved.
 - **Hands-Free: Double-Tap or Hold 10 s** (on by default): turn off for hold-only controls (no double-tap, and a hold of any length finishes on release).
-- **Noisy Room Mode** (off by default): a more careful decode for rooms with other people talking. In testing it made about a fifth fewer mistakes with chatter as loud as you, but results take roughly 70% longer.
+- **Noisy Room Mode** (off by default): a more careful decode for rooms with other people talking. In testing it made about a fifth fewer mistakes with chatter as loud as you, but results take roughly 70% longer. **Triple-tap** either dictation key to turn it on or off: the pill flashes "noisy room on" or "off", and shows a pink "noisy room" tag while you dictate with it on. Triple-tap needs Hands-Free on.
 - **Experimental Features → Live Insertion (Supported Fields)** (off by default): provisional
   words appear in readable, editable Accessibility fields while you speak; the final
   transcript replaces the preview once. This does not send/submit a form or press Return.
@@ -203,7 +203,7 @@ platform-macos/.build/release/cadence selftest-widget    # desktop stats, stale 
 platform-macos/.build/release/cadence selftest-stats     # dashboard metric maths
 platform-macos/.build/release/cadence selftest-store     # store key: keep, rescue, or reset
 python3 -m unittest discover -s tools -p 'test_*.py'      # log recovery (tools/recover_from_log.py)
-platform-macos/.build/release/cadence selftest-hotkeys   # PTT, double-tap hands-free and app chords
+platform-macos/.build/release/cadence selftest-hotkeys   # PTT, double/triple-tap gestures, pill tags, app chords
 platform-macos/.build/release/cadence selftest-delivery  # safe live previews, recovery, UTF-16 ranges
 platform-macos/.build/release/cadence selftest-lifecycle # startup, heartbeat, shutdown evidence
 platform-macos/.build/release/cadence selftest-appearance [--out dir]  # light/dark renders

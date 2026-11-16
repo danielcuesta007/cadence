@@ -318,6 +318,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         copyDictations = store?.featureEnabled("copy_dictations", default: true) ?? true
         handsFree = store?.featureEnabled("hands_free", default: true) ?? true
         noisyRoom = store?.featureEnabled("noisy_room", default: false) ?? false
+        overlay.setNoisyRoom(noisyRoom)
         liveInsertion = store?.featureEnabled("live_insertion", default: false) ?? false
         router.copyDictationsEnabled = { [weak self] in self?.copyDictations ?? true }
         router.liveInsertionEnabled = { [weak self] in self?.liveInsertion ?? false }
@@ -343,6 +344,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             guard let self else { return }
             self.renderState(state)
             if state == "idle" || state == "thinking" { self.hotkeys.resetGesture() }
+            if state == "idle", self.pendingNoisyFlash { self.flashNoisyRoom() }
             self.updatePendingHistoryUI()
             if state == "idle", let a = self.activity {
                 ProcessInfo.processInfo.endActivity(a)
@@ -406,6 +408,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             guard let self else { return }
             self.pttSwallowed = false
             self.engine?.cancel()
+        }
+        // Three quick taps: the taps themselves started a dictation with no speech in it, so
+        // throw that away and flip Noisy Room Mode. The confirmation waits for the cancel to
+        // settle at idle, or the router's "cancelled" pill would paint over it.
+        hotkeys.onTripleTap = { [weak self] _ in
+            guard let self else { return }
+            self.pttSwallowed = false
+            self.setNoisyRoom(!self.noisyRoom, via: "triple tap")
+            if self.router.activeState == "idle" {
+                self.flashNoisyRoom()
+            } else {
+                self.pendingNoisyFlash = true
+                self.engine?.cancel()
+            }
         }
         hotkeys.onCancel = { [weak self] in self?.engine?.cancel() }
         hotkeys.onUndo = { [weak self] in self?.router.undoLastInsertion() }
@@ -592,10 +608,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // Between utterances only, like the gesture settings: a mid-dictation flip would
         // decode the current utterance with a mode the user didn't start it in.
         guard router.activeState == "idle" else { return }
-        noisyRoom.toggle()
+        setNoisyRoom(!noisyRoom, via: "menu")
+    }
+
+    /// One path for every way the mode changes (menu, triple tap), so the store, the core,
+    /// the pill tag and the log never disagree.
+    func setNoisyRoom(_ on: Bool, via source: String) {
+        noisyRoom = on
         historyStore?.setFeature("noisy_room", enabled: noisyRoom)
         engine?.setNoisyRoom(noisyRoom)  // next decode — no model reload
-        router.log("noisy room mode \(noisyRoom ? "on" : "off")\(Self.beamOverrideNote)")
+        overlay.setNoisyRoom(noisyRoom)
+        router.log("noisy room mode \(noisyRoom ? "on" : "off") (\(source))\(Self.beamOverrideNote)")
+    }
+
+    private var pendingNoisyFlash = false
+    /// Briefly says which way the mode went. Deferred one turn: the router fades the pill
+    /// right after reporting idle, and show() cancels that fade.
+    func flashNoisyRoom() {
+        pendingNoisyFlash = false
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.overlay.show(state: self.noisyRoom ? "noisy_room_on" : "noisy_room_off", chip: nil)
+            self.overlay.scheduleFade(after: 1.2)
+        }
     }
 
     /// `CADENCE_BEAM` (A/B runs) beats the menu in the core, so say so wherever the log names
@@ -1005,6 +1040,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         Appearance.apply(store.appearance)
         hotkeys.resetGesture()
         engine?.setNoisyRoom(noisyRoom)
+        overlay.setNoisyRoom(noisyRoom)
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {

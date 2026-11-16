@@ -94,6 +94,10 @@ public struct PTTArbiter {
         case start(PTTKey)
         case stop(PTTKey)
         case cancel(PTTKey)
+        /// Three quick taps: throw the (sub-second, speechless) utterance away and let the app
+        /// flip Noisy Room Mode. Daniel (15 Nov 2026): "make it so that triple tap turns it on
+        /// or off". Only reachable on the hands-free path, from a double-tap latch.
+        case tripleTap(PTTKey)
         case ignore
     }
 
@@ -105,6 +109,9 @@ public struct PTTArbiter {
     private var physicalDown = false
     /// The press that latched hands-free is still down; its release must not finish.
     private var latchPress = false
+    /// Set when a double tap's second press was itself a quick tap: a third press before this
+    /// instant is a triple tap, not the "tap to finish" of hands-free.
+    private var tripleDeadline: TimeInterval?
     /// Hands-free was latched by holding past `timing.longHold`, not by a double tap.
     public private(set) var latchedByHold = false
     /// Read at the start of each gesture by the monitor; fixed for the gesture's lifetime.
@@ -131,6 +138,14 @@ public struct PTTArbiter {
         }
         if down {
             guard !otherModifiers, !physicalDown, held == nil || held == key else { return .ignore }
+            // Third quick tap after a double-tap latch: a gesture, not "finish". Judged on the
+            // way DOWN so the toggle feels instant; the release then finds nothing held.
+            let tripleWindow = tripleDeadline.map { now < $0 } ?? false
+            tripleDeadline = nil
+            if tripleWindow, latched, held == key {
+                reset()
+                return .tripleTap(key)
+            }
             physicalDown = true
             pressedAt = now
             // Strictly before the deadline: at the deadline itself `expire` has already
@@ -155,6 +170,11 @@ public struct PTTArbiter {
         physicalDown = false
         if latchPress {
             latchPress = false
+            // Only a quick second tap opens the triple-tap window: tap-then-hold and the
+            // long-hold latch (secondTap false) never do.
+            if secondTap, now - pressedAt <= timing.maxTapDuration {
+                tripleDeadline = now + timing.interTapGap
+            }
             secondTap = false
             return .ignore
         }
@@ -200,6 +220,7 @@ public struct PTTArbiter {
     }
 
     public mutating func reset() {
+        tripleDeadline = nil
         latchPress = false
         latchedByHold = false
         held = nil
@@ -220,6 +241,7 @@ public struct PTTArbiter {
         // Hands-free dictation permits ordinary typing and modifier shortcuts.
         if latched {
             latchPress = false
+            tripleDeadline = nil
             deadline = nil
             secondTap = false
             physicalDown = false
@@ -238,6 +260,9 @@ public final class HotkeyMonitor {
     /// A hold was retracted before it counted as speech (chord or typing). Distinct from
     /// onPTTUp: there is no utterance to finish, only one to throw away.
     public var onPTTCancel: ((PTTKey) -> Void)?
+    /// Three quick taps (hands-free on): the utterance they started is thrown away and the
+    /// app toggles Noisy Room Mode.
+    public var onTripleTap: ((PTTKey) -> Void)?
     public var onCancel: (() -> Void)?
     /// §7 F21: dedicated undo-last-dictation chord (⌃⌥⌘Z), consumed when handled.
     public var onUndo: (() -> Void)?
@@ -509,6 +534,7 @@ public final class HotkeyMonitor {
         case .start(let k): DispatchQueue.main.async { self.onPTTDown?(k) }
         case .stop(let k): DispatchQueue.main.async { self.onPTTUp?(k) }
         case .cancel(let k): DispatchQueue.main.async { self.onPTTCancel?(k) }
+        case .tripleTap(let k): DispatchQueue.main.async { self.onTripleTap?(k) }
         case .ignore: break
         }
     }

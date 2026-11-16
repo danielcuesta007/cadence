@@ -212,6 +212,61 @@ func runHotkeySelftest() -> Int32 {
               otherModifiers: false, now: 0.1, handsFree: true) == .ignore && !a.latched)
     }
 
+    // Triple tap toggles Noisy Room Mode (Daniel, 15 Nov 2026). Explicit timing so the checks
+    // never depend on this Mac's double-click setting.
+    do {
+        let t = PTTTiming(maxTapDuration: 0.45, interTapGap: 0.7)
+        func arb() -> PTTArbiter { PTTArbiter(timing: t) }
+        func e(_ a: inout PTTArbiter, _ down: Bool, _ now: Double, key: PTTKey = .primary,
+               handsFree: Bool = true) -> PTTArbiter.Decision {
+            a.resolve(key: key, down: down, otherModifiers: false, now: now, handsFree: handsFree)
+        }
+        var a = arb()
+        _ = e(&a, true, 0); _ = e(&a, false, 0.05); _ = e(&a, true, 0.15); _ = e(&a, false, 0.2)
+        check("triple_tap_fires_on_third_down", e(&a, true, 0.4) == .tripleTap(.primary))
+        check("triple_tap_clears_everything", a.held == nil && !a.latched && a.deadline == nil)
+        check("triple_tap_release_is_noop", e(&a, false, 0.45) == .ignore && a.expire(now: 5) == .ignore)
+        check("after_triple_next_press_starts_fresh", e(&a, true, 3) == .start(.primary))
+
+        a = arb()
+        _ = e(&a, true, 0); _ = e(&a, false, 0.05); _ = e(&a, true, 0.15); _ = e(&a, false, 0.2)
+        check("slow_third_tap_is_finish_not_toggle", e(&a, true, 0.95) == .ignore && a.latched
+              && e(&a, false, 1.0) == .stop(.primary))
+
+        a = arb()
+        _ = e(&a, true, 0); _ = e(&a, false, 0.05); _ = e(&a, true, 0.15); _ = e(&a, false, 2)
+        check("tap_then_hold_has_no_triple", e(&a, true, 2.1) == .ignore && e(&a, false, 2.15) == .stop(.primary))
+
+        a = arb()
+        _ = e(&a, true, 0)
+        _ = a.holdElapsed(now: PTTTiming.defaultLongHold + 0.1)
+        _ = e(&a, false, PTTTiming.defaultLongHold + 0.2)
+        check("long_hold_latch_has_no_triple", e(&a, true, PTTTiming.defaultLongHold + 0.3) == .ignore
+              && e(&a, false, PTTTiming.defaultLongHold + 0.35) == .stop(.primary))
+
+        a = arb()
+        _ = e(&a, true, 0); _ = e(&a, false, 0.05); _ = e(&a, true, 0.15); _ = e(&a, false, 0.2)
+        _ = a.retract() // typing while hands-free
+        check("typing_closes_triple_window", e(&a, true, 0.4) == .ignore && a.latched)
+
+        a = arb()
+        _ = e(&a, true, 0); _ = e(&a, false, 0.05); _ = e(&a, true, 0.15); _ = e(&a, false, 0.2)
+        check("other_key_cannot_triple", e(&a, true, 0.4, key: .secondary) == .ignore && a.latched)
+
+        a = arb()
+        let off = [e(&a, true, 0, handsFree: false), e(&a, false, 0.05, handsFree: false),
+                   e(&a, true, 0.15, handsFree: false), e(&a, false, 0.2, handsFree: false),
+                   e(&a, true, 0.4, handsFree: false)]
+        check("hands_free_off_has_no_triple", !off.contains(.tripleTap(.primary)))
+
+        check("pill_tags_noisy_while_listening", NoisyRoomPill.showsTag(state: "listening", noisyRoom: true)
+              && NoisyRoomPill.showsTag(state: "thinking", noisyRoom: true))
+        check("pill_no_tag_when_off_or_done", !NoisyRoomPill.showsTag(state: "listening", noisyRoom: false)
+              && !NoisyRoomPill.showsTag(state: "done", noisyRoom: true))
+        check("pill_flash_says_which_way", NoisyRoomPill.flash(on: true).hasSuffix("on")
+              && NoisyRoomPill.flash(on: false).hasSuffix("off"))
+    }
+
     do {
         var a = PTTArbiter()
         func edge(_ down: Bool, _ now: Double) -> PTTArbiter.Decision {
