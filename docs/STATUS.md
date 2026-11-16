@@ -249,11 +249,19 @@ v0.1.3 download, app branding and widget instructions remain current.
 ## Handoff
 
 _No active source handoff._ Step 19 is released and live (see receipt above).
-Installed local app remains 0.1.7(13) with the separate #106 AirPods experiment;
-Daniel has not answered whether to replace it with stable 0.1.8. Do not merge
-#106 without its A/B acceptance or overwrite the installed experiment silently.
-Source/history/keys and backups were preserved. Real voice and first install
-on another account/macOS14 hardware remain manual acceptance, not completed tests.
+
+November 11 closeout: actual installed bundle is stable 0.1.8 (14), verified from
+its Info.plist; the November 5 stable-install receipt supersedes the old unanswered
+installation choice. PR #106 merged into dev on November 11 at 21:20 UTC
+(7c9c02db9880); it is not part of the current public/installed 0.1.8 release.
+Do not silently install a new AirPods experiment or infer human A/B acceptance
+from the merge. Existing source/history/keys and rollback apps remain preserved.
+
+Real EN/ES/verbatim/long dictation, noisy-room/AirPods A/B, first install on another
+account and macOS14/older hardware remain manual acceptance. The earlier dormant
+coding session is consolidated into this canonical handoff; these checks remain
+open. No new release, build, installation or live voice test was performed during
+this closeout.
 
 ### Historical handoffs (superseded by Step 19 above)
 
