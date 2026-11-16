@@ -318,6 +318,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         copyDictations = store?.featureEnabled("copy_dictations", default: true) ?? true
         handsFree = store?.featureEnabled("hands_free", default: true) ?? true
         noisyRoom = store?.featureEnabled("noisy_room", default: false) ?? false
+        overlay.setNoisyRoom(noisyRoom)
         liveInsertion = store?.featureEnabled("live_insertion", default: false) ?? false
         router.copyDictationsEnabled = { [weak self] in self?.copyDictations ?? true }
         router.liveInsertionEnabled = { [weak self] in self?.liveInsertion ?? false }
@@ -343,6 +344,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             guard let self else { return }
             self.renderState(state)
             if state == "idle" || state == "thinking" { self.hotkeys.resetGesture() }
+            if self.noisyToggle.state(state) {
+                self.setNoisyRoom(!self.noisyRoom, via: "triple tap")
+                self.flashNoisyRoom()
+            }
             self.updatePendingHistoryUI()
             if state == "idle", let a = self.activity {
                 ProcessInfo.processInfo.endActivity(a)
@@ -360,6 +365,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 return
             }
             self.pttSwallowed = false
+            self.noisyToggle.dictationStarted()
             // Never dictate into our own recovery/quit confirmation dialog.
             guard NSApp.modalWindow == nil else { self.pttSwallowed = true; self.hotkeys.resetGesture(); return }
             // Per-app rule: dictation is off here — say so briefly, touch nothing else.
@@ -406,6 +412,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             guard let self else { return }
             self.pttSwallowed = false
             self.engine?.cancel()
+        }
+        // Three quick taps: the taps themselves started a dictation with no speech in it, so
+        // throw that away, then flip Noisy Room Mode once idle (never under a live utterance;
+        // see NoisyToggleGate). Waiting for idle also keeps the router's "cancelled" pill
+        // from painting over the confirmation.
+        hotkeys.onTripleTap = { [weak self] _ in
+            guard let self else { return }
+            self.pttSwallowed = false
+            switch self.noisyToggle.request(idle: self.router.activeState == "idle" || self.engine == nil) {
+            case .applyNow:
+                self.setNoisyRoom(!self.noisyRoom, via: "triple tap")
+                self.flashNoisyRoom()
+            case .cancelThenApply:
+                self.engine?.cancel()
+            }
         }
         hotkeys.onCancel = { [weak self] in self?.engine?.cancel() }
         hotkeys.onUndo = { [weak self] in self?.router.undoLastInsertion() }
@@ -592,10 +613,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // Between utterances only, like the gesture settings: a mid-dictation flip would
         // decode the current utterance with a mode the user didn't start it in.
         guard router.activeState == "idle" else { return }
-        noisyRoom.toggle()
+        setNoisyRoom(!noisyRoom, via: "menu")
+    }
+
+    /// One path for every way the mode changes (menu, triple tap), so the store, the core,
+    /// the pill tag and the log never disagree.
+    func setNoisyRoom(_ on: Bool, via source: String) {
+        noisyRoom = on
         historyStore?.setFeature("noisy_room", enabled: noisyRoom)
         engine?.setNoisyRoom(noisyRoom)  // next decode — no model reload
-        router.log("noisy room mode \(noisyRoom ? "on" : "off")\(Self.beamOverrideNote)")
+        overlay.setNoisyRoom(noisyRoom)
+        router.log("noisy room mode \(noisyRoom ? "on" : "off") (\(source))\(Self.beamOverrideNote)")
+    }
+
+    private var noisyToggle = NoisyToggleGate()
+    /// Briefly says which way the mode went. Deferred one turn: the router fades the pill
+    /// right after reporting idle, and show() cancels that fade.
+    func flashNoisyRoom() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.overlay.show(state: self.noisyRoom ? "noisy_room_on" : "noisy_room_off", chip: nil)
+            self.overlay.scheduleFade(after: 1.2)
+        }
     }
 
     /// `CADENCE_BEAM` (A/B runs) beats the menu in the core, so say so wherever the log names
@@ -1005,6 +1044,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         Appearance.apply(store.appearance)
         hotkeys.resetGesture()
         engine?.setNoisyRoom(noisyRoom)
+        overlay.setNoisyRoom(noisyRoom)
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {

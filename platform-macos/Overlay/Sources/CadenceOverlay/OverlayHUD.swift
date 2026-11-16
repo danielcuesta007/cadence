@@ -18,6 +18,9 @@ public final class OverlayHUD {
     private let levelLabel = NSTextField(labelWithString: "")
     private let partialLabel = NSTextField(labelWithString: "")
     private let chipLabel = NSTextField(labelWithString: "")
+    /// "noisy room" tag, shown on the pill while dictating with Noisy Room Mode on.
+    private let modeLabel = NSTextField(labelWithString: NoisyRoomPill.tag)
+    private var noisyRoom = false
     private var fadeWork: DispatchWorkItem?
     private var handsFree = false
     private var tapPending = false
@@ -33,6 +36,16 @@ public final class OverlayHUD {
         self.longHold = on && longHold
         if on { tapPending = false }
         refreshListeningGlyph()
+    }
+    /// Whether Noisy Room Mode is on; the pill tags listening/thinking with it.
+    public func setNoisyRoom(_ on: Bool) {
+        noisyRoom = on
+        refreshModeTag()
+        fitAndPosition()
+    }
+    private var currentState = "idle"
+    private func refreshModeTag() {
+        modeLabel.isHidden = !NoisyRoomPill.showsTag(state: currentState, noisyRoom: noisyRoom)
     }
     public func setTapPending(_ on: Bool) {
         tapPending = on
@@ -90,6 +103,9 @@ public final class OverlayHUD {
         chipLabel.lineBreakMode = .byTruncatingTail
         chipLabel.widthAnchor.constraint(lessThanOrEqualToConstant: 240).isActive = true
         chipLabel.font = .systemFont(ofSize: 11, weight: .medium)
+        modeLabel.font = .systemFont(ofSize: 11, weight: .semibold)
+        modeLabel.textColor = NSColor(srgbRed: 0.949, green: 0.635, blue: 0.749, alpha: 1) // brand pink
+        modeLabel.isHidden = true
         chipLabel.textColor = .secondaryLabelColor
 
         // Constant width while visible: the widest bar glyph x the 10-slot history.
@@ -99,7 +115,7 @@ public final class OverlayHUD {
         levelLabel.isHidden = true
         partialLabel.isHidden = true
 
-        let stack = NSStackView(views: [glyphLabel, levelLabel, partialLabel, chipLabel])
+        let stack = NSStackView(views: [glyphLabel, levelLabel, partialLabel, modeLabel, chipLabel])
         stack.orientation = .horizontal
         stack.alignment = .centerY
         stack.spacing = 10
@@ -136,10 +152,13 @@ public final class OverlayHUD {
         case "disabled": glyph = "‖ off here"
         case "verbatim_on": glyph = "¶ verbatim on"
         case "verbatim_off": glyph = "¶ cleanup on"
+        case "noisy_room_on", "noisy_room_off": glyph = NoisyRoomPill.flash(on: state == "noisy_room_on")
         default: glyph = state
         }
         glyphLabel.stringValue = glyph
         chipLabel.stringValue = chip == "cloud" ? "cloud" : "local"
+        currentState = state
+        refreshModeTag()
         if state == "listening" {
             levelHistory = String(repeating: "▁", count: 10)
             levelLabel.stringValue = levelHistory
@@ -208,4 +227,45 @@ public final class OverlayHUD {
         panel.setFrameOrigin(
             NSPoint(x: f.midX - panel.frame.width / 2, y: f.minY + 96))
     }
+}
+
+/// Pure pill rules for Noisy Room Mode, testable without a window.
+public enum NoisyRoomPill {
+    public static let tag = "noisy room"
+    /// Tagged while the mode affects this utterance: hearing it and decoding it.
+    public static func showsTag(state: String, noisyRoom: Bool) -> Bool {
+        noisyRoom && (state == "listening" || state == "thinking")
+    }
+    /// The brief confirmation after a triple tap (or any toggle) flips the mode.
+    public static func flash(on: Bool) -> String {
+        on ? "◉ noisy room on" : "○ noisy room off"
+    }
+}
+
+/// Sequencing for a triple-tap toggle, kept pure so selftest-hotkeys can pin it. The flip is
+/// applied only at idle, after the taps' utterance is cancelled: the menu's rule that the mode
+/// never changes under a live utterance holds here too.
+public struct NoisyToggleGate {
+    public enum Action: Equatable {
+        /// Already idle: flip and confirm now.
+        case applyNow
+        /// Cancel the taps' utterance; flip and confirm when idle arrives.
+        case cancelThenApply
+    }
+    public private(set) var pending = false
+    public init() {}
+    public mutating func request(idle: Bool) -> Action {
+        if idle { pending = false; return .applyNow }
+        pending = true
+        return .cancelThenApply
+    }
+    /// Router state changed. True exactly once, when a deferred flip should be applied.
+    public mutating func state(_ state: String) -> Bool {
+        guard pending, state == "idle" else { return false }
+        pending = false
+        return true
+    }
+    /// A new dictation is starting: any deferred flip that never reached idle is dropped,
+    /// so a stale confirmation can never paint over a later dictation.
+    public mutating func dictationStarted() { pending = false }
 }
